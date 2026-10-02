@@ -80,6 +80,18 @@ def create_app():
 
     @app.get("/", response_class=HTMLResponse)
     def index() -> str:
+        landing_p = Path("frontend/index.html")
+        if landing_p.exists():
+            return landing_p.read_text(encoding="utf-8")
+        return page()
+
+    @app.get("/console", response_class=HTMLResponse)
+    @app.get("/app", response_class=HTMLResponse)
+    @app.get("/workspace", response_class=HTMLResponse)
+    def console_page() -> str:
+        console_p = Path("frontend/console.html")
+        if console_p.exists():
+            return console_p.read_text(encoding="utf-8")
         return page()
 
     @app.get("/presentation", response_class=HTMLResponse)

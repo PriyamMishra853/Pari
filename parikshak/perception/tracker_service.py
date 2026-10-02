@@ -13,7 +13,11 @@ import time
 from pathlib import Path
 from typing import Any
 
-import cv2
+try:
+    import importlib
+    cv2 = importlib.import_module("cv2")
+except ImportError:
+    cv2 = None  # type: ignore
 import numpy as np
 
 from parikshak.perception.yolo_tracker import YoloExperimentTracker
@@ -29,7 +33,7 @@ class TrackerService:
         self.lock = threading.RLock()
         self.experiment_id = experiment_id
         self.tracker = YoloExperimentTracker(self.experiment_id)
-        self.video_cap: cv2.VideoCapture | None = None
+        self.video_cap: Any | None = None
         self.active_video_path: str | None = None
         self.is_video_playing = False
         self.last_telemetry: dict[str, Any] = {}

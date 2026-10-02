@@ -163,7 +163,7 @@
         },
         "min_tags_for_lock": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 0
         },
         "on_frame_loss": {
           "type": "object",

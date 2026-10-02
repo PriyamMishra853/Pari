@@ -373,8 +373,8 @@ class YoloExperimentTracker:
         if self.experiment_id in ["MOA-1", "MULTI-OBJ", "MOA"]:
             return self._process_moa1_frame(frame, current_time, is_dummy_frame)
 
-        # 1. Run YOLO Object Detection with imgsz=480 for superior small object precision
-        det_results = self.det_model(frame, imgsz=480, verbose=False)[0]
+        # 1. Run YOLO Object Detection with imgsz=320 for real-time high-FPS CPU inference
+        det_results = self.det_model(frame, imgsz=320, verbose=False)[0]
         detected_objects = []
         target_box = None
         target_conf = 0.0
@@ -974,7 +974,7 @@ class YoloExperimentTracker:
         if is_dummy_frame:
             return empty_skeleton
 
-        pose_results = self.pose_model(frame, imgsz=480, verbose=False)[0]
+        pose_results = self.pose_model(frame, imgsz=320, verbose=False)[0]
         if len(pose_results.keypoints) == 0 or pose_results.keypoints.data.shape[1] < 17:
             return empty_skeleton
 
@@ -1514,7 +1514,7 @@ class YoloExperimentTracker:
         best_bottle_conf = 0.0
 
         if not is_dummy_frame and self.det_model is not None:
-            det_results = self.det_model(frame, imgsz=480, verbose=False)[0]
+            det_results = self.det_model(frame, imgsz=320, verbose=False)[0]
 
             for box in det_results.boxes:
                 cls_id = int(box.cls[0].item())
@@ -2247,40 +2247,40 @@ class YoloExperimentTracker:
         k_clean = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
 
         # --- RED DETECTION (Dual HSV range + RGB Red Dominance) ---
-        mask_r1 = cv2.inRange(hsv, np.array([0, 45, 40]), np.array([12, 255, 255]))
-        mask_r2 = cv2.inRange(hsv, np.array([165, 45, 40]), np.array([180, 255, 255]))
+        mask_r1 = cv2.inRange(hsv, np.array([0, 32, 28]), np.array([14, 255, 255]))
+        mask_r2 = cv2.inRange(hsv, np.array([160, 32, 28]), np.array([180, 255, 255]))
         hsv_red = cv2.bitwise_or(mask_r1, mask_r2)
 
-        # Red dominance: R must be significantly higher than G and B
+        # Red dominance: R higher than G and B with adaptive floor
         r_int = r_ch.astype(np.int16)
         g_int = g_ch.astype(np.int16)
         b_int = b_ch.astype(np.int16)
-        rgb_red = ((r_int - g_int > 18) & (r_int - b_int > 18) & (r_ch > 55)).astype(np.uint8) * 255
+        rgb_red = ((r_int - g_int > 12) & (r_int - b_int > 12) & (r_ch > 42)).astype(np.uint8) * 255
 
         mask_red = cv2.bitwise_and(hsv_red, rgb_red)
         mask_red = cv2.morphologyEx(mask_red, cv2.MORPH_OPEN, k_clean)
         mask_red = cv2.morphologyEx(mask_red, cv2.MORPH_CLOSE, k_clean)
 
-        # --- YELLOW DETECTION (HSV [14, 40] + RGB Yellow Dominance) ---
-        hsv_yellow = cv2.inRange(hsv, np.array([14, 45, 50]), np.array([40, 255, 255]))
+        # --- YELLOW DETECTION (HSV [12, 35] + RGB Yellow Dominance) ---
+        hsv_yellow = cv2.inRange(hsv, np.array([12, 35, 35]), np.array([42, 255, 255]))
         rgb_yellow = (
-            (r_ch > 65)
-            & (g_ch > 60)
-            & (r_int - b_int > 25)
-            & (g_int - b_int > 20)
-            & (np.abs(r_int - g_int) < 70)
+            (r_ch > 48)
+            & (g_ch > 45)
+            & (r_int - b_int > 16)
+            & (g_int - b_int > 14)
+            & (np.abs(r_int - g_int) < 75)
         ).astype(np.uint8) * 255
 
         mask_yellow = cv2.bitwise_and(hsv_yellow, rgb_yellow)
         mask_yellow = cv2.morphologyEx(mask_yellow, cv2.MORPH_OPEN, k_clean)
         mask_yellow = cv2.morphologyEx(mask_yellow, cv2.MORPH_CLOSE, k_clean)
 
-        # Contour extraction for Red Box
+        # Contour extraction for Red Box (minimum area 180px for distant or compact boxes)
         cnts_red, _ = cv2.findContours(mask_red, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         red_box = None
         if cnts_red:
             best_c = max(cnts_red, key=cv2.contourArea)
-            if cv2.contourArea(best_c) >= 280.0:
+            if cv2.contourArea(best_c) >= 180.0:
                 rx, ry, rw, rh = cv2.boundingRect(best_c)
                 red_box = (float(rx), float(ry), float(rx + rw), float(ry + rh))
                 self.bcx1_last_red_box = red_box
@@ -2289,14 +2289,14 @@ class YoloExperimentTracker:
             # Grace period for hand occlusion during handling
             red_box = self.bcx1_last_red_box
 
-        # Contour extraction for Yellow Box
+        # Contour extraction for Yellow Box (minimum area 180px)
         cnts_yellow, _ = cv2.findContours(mask_yellow, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         yellow_box = None
         if cnts_yellow:
             best_y = max(cnts_yellow, key=cv2.contourArea)
-            if cv2.contourArea(best_y) >= 280.0:
+            if cv2.contourArea(best_y) >= 180.0:
                 yx, yy, yw, yh = cv2.boundingRect(best_y)
-                yellow_box = (float(yx), float(yy), float(yx + yw), float(ry if False else yy + yh))
+                yellow_box = (float(yx), float(yy), float(yx + yw), float(yy + yh))
                 self.bcx1_last_yellow_box = yellow_box
                 self.bcx1_last_seen_yellow_time = current_time
         elif self.bcx1_last_yellow_box and (current_time - self.bcx1_last_seen_yellow_time) < 1.0:

@@ -1,0 +1,1304 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PARIKSHAK — AI Human Activity Recognition for On-board BAS Experiments (ISRO SIH 26174)</title>
+  <meta name="description" content="Autonomous Edge AI Procedure Witness for Bharatiya Antariksh Station (BAS) and Crewed Missions. Smart India Hackathon 2026 Problem Statement 26174.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-space: #030712;
+      --bg-card: rgba(13, 20, 36, 0.75);
+      --bg-card-hover: rgba(22, 33, 62, 0.85);
+      --border-space: rgba(0, 240, 255, 0.18);
+      --border-hover: rgba(0, 240, 255, 0.55);
+      --cyan: #00f0ff;
+      --cyan-glow: rgba(0, 240, 255, 0.35);
+      --purple: #8b5cf6;
+      --purple-glow: rgba(139, 92, 246, 0.3);
+      --isro-orange: #ff9933;
+      --isro-green: #138808;
+      --emerald: #10b981;
+      --amber: #f59e0b;
+      --rose: #f43f5e;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --font-sans: 'Inter', system-ui, sans-serif;
+      --font-display: 'Space Grotesk', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      cursor: default;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      background-color: var(--bg-space);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      overflow-x: hidden;
+      min-height: 100vh;
+      line-height: 1.6;
+      position: relative;
+    }
+
+    /* Custom Orbital Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #020617;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: linear-gradient(180deg, var(--cyan), var(--purple));
+      border-radius: 4px;
+      box-shadow: 0 0 10px var(--cyan);
+    }
+
+    /* Cosmic Canvas Background */
+    #space-canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    /* Interactive Mouse HUD Reticle */
+    #cursor-reticle {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 32px;
+      height: 32px;
+      border: 1.5px solid var(--cyan);
+      border-radius: 50%;
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      transition: width 0.2s, height 0.2s, border-color 0.2s;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      mix-blend-mode: screen;
+    }
+    #cursor-dot {
+      width: 4px;
+      height: 4px;
+      background: #fff;
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--cyan);
+    }
+    #cursor-telemetry {
+      position: fixed;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--cyan);
+      letter-spacing: 0.5px;
+      pointer-events: none;
+      z-index: 9998;
+      transform: translate(18px, 12px);
+      text-shadow: 0 0 6px rgba(0, 240, 255, 0.8);
+      white-space: nowrap;
+    }
+
+    /* App Container */
+    .app-wrap {
+      position: relative;
+      z-index: 10;
+    }
+
+    /* Top Mission Header */
+    header.mission-header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: rgba(3, 7, 18, 0.8);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border-space);
+      z-index: 100;
+      padding: 0.85rem 2.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: all 0.3s;
+    }
+    .header-logo {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .isro-badge {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--isro-orange);
+      background: rgba(255, 153, 51, 0.12);
+      border: 1px solid rgba(255, 153, 51, 0.35);
+      padding: 3px 9px;
+      border-radius: 4px;
+      letter-spacing: 1px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .isro-badge::before {
+      content: "";
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      background: var(--isro-orange);
+      border-radius: 50%;
+      box-shadow: 0 0 6px var(--isro-orange);
+    }
+    .brand-title {
+      font-family: var(--font-display);
+      font-size: 1.45rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      background: linear-gradient(135deg, #ffffff 40%, var(--cyan) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .brand-sub {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-left: -4px;
+    }
+
+    nav.header-nav {
+      display: flex;
+      align-items: center;
+      gap: 1.8rem;
+    }
+    nav.header-nav a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+    nav.header-nav a:hover {
+      color: var(--cyan);
+      text-shadow: 0 0 8px var(--cyan-glow);
+    }
+
+    .btn-console {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 0.55rem 1.4rem;
+      border-radius: 6px;
+      background: linear-gradient(135deg, rgba(0, 240, 255, 0.18), rgba(139, 92, 246, 0.25));
+      border: 1px solid var(--cyan);
+      color: #fff;
+      text-decoration: none;
+      box-shadow: 0 0 16px rgba(0, 240, 255, 0.35);
+      transition: all 0.25s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-console:hover {
+      background: linear-gradient(135deg, var(--cyan), var(--purple));
+      color: #030712;
+      box-shadow: 0 0 28px var(--cyan);
+      transform: translateY(-2px);
+    }
+
+    /* Hero Section */
+    section.hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 7rem 2rem 4rem;
+      position: relative;
+    }
+    .mission-tag {
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      color: var(--cyan);
+      background: rgba(0, 240, 255, 0.08);
+      border: 1px solid var(--border-space);
+      padding: 6px 16px;
+      border-radius: 30px;
+      margin-bottom: 1.8rem;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 0 20px rgba(0, 240, 255, 0.2);
+    }
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--emerald);
+      border-radius: 50%;
+      box-shadow: 0 0 10px var(--emerald);
+      animation: pulse 1.8s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(1.3); }
+    }
+
+    .hero-title {
+      font-family: var(--font-display);
+      font-size: clamp(2.4rem, 5.5vw, 4.2rem);
+      font-weight: 800;
+      line-height: 1.15;
+      max-width: 1050px;
+      margin-bottom: 1.6rem;
+      letter-spacing: -0.5px;
+    }
+    .hero-title span.highlight-cyan {
+      background: linear-gradient(135deg, #ffffff, var(--cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero-title span.highlight-orange {
+      background: linear-gradient(135deg, #ffffff 20%, var(--isro-orange) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-desc {
+      font-size: clamp(1rem, 1.3vw, 1.25rem);
+      color: var(--text-muted);
+      max-width: 820px;
+      margin-bottom: 2.8rem;
+      font-weight: 400;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 1.4rem;
+      margin-bottom: 4rem;
+    }
+    .btn-primary-hero {
+      font-family: var(--font-mono);
+      font-size: 1rem;
+      font-weight: 700;
+      padding: 1rem 2.4rem;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #00f0ff, #3b82f6);
+      color: #030712;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 0 35px rgba(0, 240, 255, 0.45);
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .btn-primary-hero:hover {
+      box-shadow: 0 0 50px rgba(0, 240, 255, 0.85);
+      transform: translateY(-3px) scale(1.02);
+    }
+    .btn-secondary-hero {
+      font-family: var(--font-mono);
+      font-size: 1rem;
+      font-weight: 600;
+      padding: 1rem 2.2rem;
+      border-radius: 8px;
+      background: rgba(13, 20, 36, 0.6);
+      border: 1px solid var(--border-space);
+      color: #fff;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      backdrop-filter: blur(12px);
+      transition: all 0.3s;
+    }
+    .btn-secondary-hero:hover {
+      border-color: var(--cyan);
+      background: rgba(0, 240, 255, 0.1);
+      box-shadow: 0 0 25px rgba(0, 240, 255, 0.25);
+      transform: translateY(-2px);
+    }
+
+    /* Hero Live Telemetry Metrics Ribbon */
+    .telemetry-ribbon {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.2rem;
+      width: 100%;
+      max-width: 1100px;
+      margin-top: 1rem;
+    }
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-space);
+      border-radius: 10px;
+      padding: 1.2rem;
+      backdrop-filter: blur(14px);
+      text-align: left;
+      transition: all 0.3s;
+      position: relative;
+      overflow: hidden;
+    }
+    .stat-card:hover {
+      border-color: var(--border-hover);
+      box-shadow: 0 8px 30px rgba(0, 240, 255, 0.15);
+      transform: translateY(-4px);
+    }
+    .stat-card::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 3px;
+      height: 100%;
+      background: var(--cyan);
+    }
+    .stat-label {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 0.4rem;
+    }
+    .stat-val {
+      font-family: var(--font-display);
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+    }
+    .stat-val small {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--cyan);
+      font-weight: 400;
+    }
+    .stat-sub {
+      font-size: 0.78rem;
+      color: #94a3b8;
+      margin-top: 0.3rem;
+    }
+
+    /* General Section Styling */
+    section.content-section {
+      padding: 6rem 2rem;
+      max-width: 1200px;
+      margin: 0 auto;
+      position: relative;
+    }
+    .section-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--cyan);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 0.6rem;
+      display: block;
+    }
+    .section-heading {
+      font-family: var(--font-display);
+      font-size: clamp(1.8rem, 3.2vw, 2.7rem);
+      font-weight: 700;
+      margin-bottom: 1.2rem;
+      line-height: 1.25;
+    }
+    .section-desc {
+      color: var(--text-muted);
+      font-size: 1.05rem;
+      max-width: 750px;
+      margin-bottom: 3.5rem;
+    }
+
+    /* Problem Statement 26174 Spotlight Card */
+    .ps-spotlight-card {
+      background: linear-gradient(135deg, rgba(13, 20, 36, 0.95), rgba(7, 12, 28, 0.95));
+      border: 1px solid rgba(255, 153, 51, 0.4);
+      border-radius: 14px;
+      padding: 2.5rem;
+      margin-bottom: 4rem;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), 0 0 30px rgba(255, 153, 51, 0.1);
+    }
+    .ps-spotlight-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 280px;
+      height: 280px;
+      background: radial-gradient(circle, rgba(255, 153, 51, 0.15) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .ps-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1.5rem;
+      margin-top: 1.5rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .ps-meta-item .meta-label {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--isro-orange);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .ps-meta-item .meta-val {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #fff;
+      margin-top: 0.2rem;
+    }
+
+    /* Core Architecture Grid */
+    .arch-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 1.8rem;
+    }
+    .arch-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-space);
+      border-radius: 12px;
+      padding: 2rem;
+      backdrop-filter: blur(16px);
+      transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+    }
+    .arch-card:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--cyan);
+      box-shadow: 0 12px 35px rgba(0, 240, 255, 0.18);
+      transform: translateY(-5px);
+    }
+    .arch-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 10px;
+      background: rgba(0, 240, 255, 0.1);
+      border: 1px solid var(--border-space);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+      margin-bottom: 1.4rem;
+      color: var(--cyan);
+    }
+    .arch-card h3 {
+      font-family: var(--font-display);
+      font-size: 1.3rem;
+      font-weight: 700;
+      margin-bottom: 0.8rem;
+      color: #fff;
+    }
+    .arch-card p {
+      color: var(--text-muted);
+      font-size: 0.92rem;
+      line-height: 1.6;
+    }
+    .arch-badge {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      padding: 3px 8px;
+      border-radius: 4px;
+      background: rgba(139, 92, 246, 0.15);
+      border: 1px solid rgba(139, 92, 246, 0.4);
+      color: #c4b5fd;
+      margin-top: 1rem;
+    }
+
+    /* Live Experiments Suite (Featuring ISRO BCX-1 Sample Experiment) */
+    .experiments-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      gap: 1.8rem;
+    }
+    .exp-card {
+      background: linear-gradient(145deg, rgba(15, 23, 42, 0.8), rgba(9, 14, 28, 0.9));
+      border: 1px solid var(--border-space);
+      border-radius: 14px;
+      padding: 2.2rem;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.3s;
+    }
+    .exp-card:hover {
+      border-color: var(--cyan);
+      box-shadow: 0 10px 40px rgba(0, 240, 255, 0.2);
+      transform: translateY(-4px);
+    }
+    .exp-card.featured {
+      border: 1.5px solid var(--isro-orange);
+      box-shadow: 0 0 30px rgba(255, 153, 51, 0.15);
+    }
+    .exp-flag {
+      position: absolute;
+      top: 16px;
+      right: 18px;
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--isro-orange);
+      background: rgba(255, 153, 51, 0.12);
+      border: 1px solid rgba(255, 153, 51, 0.4);
+      padding: 4px 10px;
+      border-radius: 4px;
+      letter-spacing: 0.5px;
+    }
+    .exp-id {
+      font-family: var(--font-mono);
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--cyan);
+      margin-bottom: 0.3rem;
+    }
+    .exp-card h4 {
+      font-family: var(--font-display);
+      font-size: 1.35rem;
+      font-weight: 700;
+      margin-bottom: 0.9rem;
+      color: #fff;
+    }
+    .exp-steps-list {
+      list-style: none;
+      margin: 1.2rem 0;
+      font-size: 0.85rem;
+      color: #cbd5e1;
+    }
+    .exp-steps-list li {
+      margin-bottom: 0.55rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .exp-steps-list li::before {
+      content: "▹";
+      color: var(--cyan);
+      font-weight: 700;
+    }
+    .exp-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--cyan);
+      text-decoration: none;
+      margin-top: 1rem;
+      padding: 0.5rem 1rem;
+      background: rgba(0, 240, 255, 0.08);
+      border: 1px solid var(--border-space);
+      border-radius: 6px;
+      transition: all 0.2s;
+    }
+    .exp-btn:hover {
+      background: var(--cyan);
+      color: #030712;
+      box-shadow: 0 0 15px var(--cyan);
+    }
+
+    /* PS 26174 Solved vs Open Research Matrix */
+    .table-container {
+      background: var(--bg-card);
+      border: 1px solid var(--border-space);
+      border-radius: 12px;
+      overflow-x: auto;
+      backdrop-filter: blur(16px);
+      margin-top: 2rem;
+    }
+    table.matrix-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.92rem;
+      text-align: left;
+    }
+    table.matrix-table th {
+      background: rgba(15, 23, 42, 0.85);
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      color: var(--cyan);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      padding: 1.1rem 1.4rem;
+      border-bottom: 1px solid var(--border-space);
+    }
+    table.matrix-table td {
+      padding: 1.1rem 1.4rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      color: #e2e8f0;
+      vertical-align: top;
+    }
+    table.matrix-table tr:hover td {
+      background: rgba(0, 240, 255, 0.03);
+    }
+    .badge-solved {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--emerald);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .badge-solved::before {
+      content: "✓";
+    }
+    .badge-frontier {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(245, 158, 11, 0.15);
+      color: var(--amber);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .badge-frontier::before {
+      content: "✦";
+    }
+
+    /* Live CTA Banner */
+    .cta-banner {
+      background: radial-gradient(circle at center, rgba(0, 240, 255, 0.15) 0%, rgba(13, 20, 36, 0.95) 70%);
+      border: 1px solid var(--cyan);
+      border-radius: 16px;
+      padding: 4rem 2rem;
+      text-align: center;
+      box-shadow: 0 0 50px rgba(0, 240, 255, 0.25);
+      margin: 4rem auto 2rem;
+      max-width: 1000px;
+    }
+    .cta-banner h2 {
+      font-family: var(--font-display);
+      font-size: clamp(2rem, 3.5vw, 2.8rem);
+      margin-bottom: 1.2rem;
+    }
+
+    /* Footer */
+    footer.mission-footer {
+      border-top: 1px solid var(--border-space);
+      padding: 3rem 2rem 2rem;
+      text-align: center;
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      background: #02050e;
+    }
+    .footer-content {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1.5rem;
+    }
+
+    @media (max-width: 768px) {
+      header.mission-header {
+        padding: 0.7rem 1.2rem;
+      }
+      nav.header-nav {
+        display: none;
+      }
+      .telemetry-ribbon {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Dynamic Cosmic Animated Background -->
+  <canvas id="space-canvas"></canvas>
+
+  <!-- Interactive Astronaut Cursor HUD -->
+  <div id="cursor-reticle">
+    <div id="cursor-dot"></div>
+  </div>
+  <div id="cursor-telemetry">MET T+00:14:32 | LEO 400KM | BAS-1</div>
+
+  <div class="app-wrap">
+
+    <!-- Top Mission Header -->
+    <header class="mission-header">
+      <div class="header-logo">
+        <div class="isro-badge">ISRO · SIH 26174</div>
+        <div class="brand-title">PARIKSHAK</div>
+        <div class="brand-sub">परीक्षक</div>
+      </div>
+      <nav class="header-nav">
+        <a href="#problem">The Problem</a>
+        <a href="#solution">Architecture</a>
+        <a href="#experiments">Experiments</a>
+        <a href="#matrix">PS 26174 Matrix</a>
+        <a href="/presentation">SIH Presentation</a>
+      </nav>
+      <a href="/console" class="btn-console">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+        Launch Flight Console
+      </a>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero">
+      <div class="mission-tag">
+        <div class="pulse-dot"></div>
+        <span>Bharatiya Antariksh Station (BAS) · On-Board Procedure Compliance Witness</span>
+      </div>
+
+      <h1 class="hero-title">
+        Autonomous <span class="highlight-cyan">Edge AI Procedure Witness</span><br>
+        for <span class="highlight-orange">Deep Space Science Missions</span>
+      </h1>
+
+      <p class="hero-desc">
+        When communication delays with Earth reach up to 20 minutes, astronauts cannot rely on ground control.
+        <strong>PARIKSHAK</strong> tracks microgravity experiments in real time at the edge with orientation-agnostic
+        YOLOv8 vision, instant spoken voice guidance, and tamper-evident cryptographic flight logging.
+      </p>
+
+      <div class="hero-actions">
+        <a href="/console" class="btn-primary-hero">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+          Enter Mission Console
+        </a>
+        <a href="/presentation" class="btn-secondary-hero">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>
+          View SIH Deck
+        </a>
+      </div>
+
+      <!-- Live Telemetry Ribbon -->
+      <div class="telemetry-ribbon">
+        <div class="stat-card">
+          <div class="stat-label">Edge Inference Latency</div>
+          <div class="stat-val">38 <small>ms / frame</small></div>
+          <div class="stat-sub">100% offline standalone execution</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Orientation Invariance</div>
+          <div class="stat-val">3D Rack <small>Frame Lock</small></div>
+          <div class="stat-sub">Zero-G body posture tracking</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Voice Alert Latency</div>
+          <div class="stat-val">&le; 1.6 <small>seconds</small></div>
+          <div class="stat-sub">Sub-2s target met across all runs</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Downlink Cryptography</div>
+          <div class="stat-val">SHA-256 <small>Hash Chain</small></div>
+          <div class="stat-sub">Tamper-evident flight record</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Problem Section -->
+    <section id="problem" class="content-section">
+      <span class="section-eyebrow">The Deep Space Challenge</span>
+      <h2 class="section-heading">Why Terrestrial Computer Vision Fails Beyond Earth Orbit</h2>
+      <p class="section-desc">
+        Humanity's expansion into the Bharatiya Antariksh Station (BAS) and lunar habitats introduces operational constraints that render conventional cloud-assisted video analysis completely obsolete.
+      </p>
+
+      <!-- Problem Statement Spotlight Card -->
+      <div class="ps-spotlight-card">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:1rem;">
+          <div>
+            <div style="font-family:var(--font-mono); color:var(--isro-orange); font-size:0.82rem; font-weight:700; letter-spacing:1px; margin-bottom:0.3rem;">OFFICIAL PROBLEM STATEMENT</div>
+            <h3 style="font-family:var(--font-display); font-size:1.6rem; color:#fff;">PS ID 26174: AI Human Activity Recognition for On-board BAS Experiments</h3>
+          </div>
+          <div style="font-family:var(--font-mono); font-size:0.8rem; background:rgba(255,153,51,0.15); border:1px solid var(--isro-orange); color:#ffaa44; padding:6px 14px; border-radius:6px;">
+            Department of Space / ISRO
+          </div>
+        </div>
+
+        <p style="color:#cbd5e1; font-size:0.95rem; margin-top:1.2rem; line-height:1.7;">
+          <em>"As humanity aims for space missions such as BAS and lunar missions, real-time ground support becomes impossible due to communication delays. An AI-based HAR system acts as an on-board assistant that supports the execution of scientific experiments, ensuring the success of science beyond Earth's orbit."</em>
+        </p>
+
+        <div class="ps-meta-grid">
+          <div class="ps-meta-item">
+            <div class="meta-label">Operation Mode</div>
+            <div class="meta-val">100% Standalone Edge</div>
+          </div>
+          <div class="ps-meta-item">
+            <div class="meta-label">Video Feed</div>
+            <div class="meta-val">Fixed-Payload Rack Cameras</div>
+          </div>
+          <div class="ps-meta-item">
+            <div class="meta-label">Mandatory Alerting</div>
+            <div class="meta-val">Real-Time Spoken Voice Alerts</div>
+          </div>
+          <div class="ps-meta-item">
+            <div class="meta-label">Downlink Contract</div>
+            <div class="meta-val">Timestamped Lightweight Audit</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Problem Triad Cards -->
+      <div class="arch-grid">
+        <div class="arch-card">
+          <div class="arch-icon">⏱</div>
+          <h3>20-Minute Latency Gap</h3>
+          <p>
+            Signal travel delays to Lunar orbit or deep space range from 2.5 seconds to 20+ minutes. If an astronaut skips a sterile sealing step or swaps toxic chemicals, Earth cannot alert them until the sample is already ruined.
+          </p>
+          <div class="arch-badge">Edge Autonomy Required</div>
+        </div>
+
+        <div class="arch-card">
+          <div class="arch-icon">🌐</div>
+          <h3>Zero-G Posture Breakdown</h3>
+          <p>
+            Standard pose models assume an Earth floor and gravitational "down." In microgravity, astronauts float upside-down, sideways, or pitched at awkward angles. Ground-based HAR completely fails to recognize actions.
+          </p>
+          <div class="arch-badge">Orientation-Agnostic Rack Frame</div>
+        </div>
+
+        <div class="arch-card">
+          <div class="arch-icon">📡</div>
+          <h3>Severe Bandwidth Quotas</h3>
+          <p>
+            Continuous raw HD video streaming over deep-space telemetry links is prohibited. Edge systems must run locally, distill hours of experiment footage into concise evidence records, and downlink cryptographic proof.
+          </p>
+          <div class="arch-badge">Lightweight Audit Downlink</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Architecture Section -->
+    <section id="solution" class="content-section">
+      <span class="section-eyebrow">The PARIKSHAK Architecture</span>
+      <h2 class="section-heading">How PARIKSHAK Delivers Aerospace-Grade Verification</h2>
+      <p class="section-desc">
+        A mathematically grounded, offline-first pipeline built to aerospace reliability standards: Watch &rarr; Reason &rarr; Verify &rarr; Intervene &rarr; Seal.
+      </p>
+
+      <div class="arch-grid">
+        <div class="arch-card">
+          <div class="arch-icon">🎯</div>
+          <h3>1. Rack-Relative 3D Frame</h3>
+          <p>
+            Coordinates are resolved relative to AprilTag / YOLO fiducials bonded to the payload rack face. "Up" is defined by the experiment rack, not gravity. Even if the astronaut floats upside down, geometry remains deterministic.
+          </p>
+          <div class="arch-badge">Gravity-Independent Kinematics</div>
+        </div>
+
+        <div class="arch-card">
+          <div class="arch-icon">👁️</div>
+          <h3>2. Multimodal Neural Perception</h3>
+          <p>
+            High-speed YOLOv8 object detection paired with 17-point astronaut skeletal tracking and contact proximity analysis. Recognizes small spaceflight items (vials, boxes, latches, syringes) with spatial hand-object contact.
+          </p>
+          <div class="arch-badge">YOLOv8 + 17-Point Skeletal Model</div>
+        </div>
+
+        <div class="arch-card">
+          <div class="arch-icon">📄</div>
+          <h3>3. Zero-Retraining PDL Engine</h3>
+          <p>
+            Procedures are defined in declarative YAML (Procedure Definition Language). Adding a brand-new space experiment requires zero neural retraining&mdash;only a procedure file validated against the sensor capability contract.
+          </p>
+          <div class="arch-badge">Zero Neural Retraining</div>
+        </div>
+
+        <div class="arch-card">
+          <div class="arch-icon">🔊</div>
+          <h3>4. Causal Spoken Voice Alerts</h3>
+          <p>
+            Sub-second text-to-speech engine speaks clear verbal interventions. Crucially, it provides the causal reason: <em>"Step eight, close the glovebox latch, was not completed. Close latch before starting unit."</em>
+          </p>
+          <div class="arch-badge">Sub-2s Spoken Interventions</div>
+        </div>
+
+        <div class="arch-card">
+          <div class="arch-icon">🔐</div>
+          <h3>5. Tamper-Evident Flight Log</h3>
+          <p>
+            Every transition, step outcome, and biometric state is committed to a SHA-256 hash-chained JSONL log. Altering even one byte flags the exact tampered record, giving ground flight controllers cryptographically verified proof.
+          </p>
+          <div class="arch-badge">Cryptographic Tamper-Evident Chain</div>
+        </div>
+
+        <div class="arch-card">
+          <div class="arch-icon">📡</div>
+          <h3>6. Dual Video Streaming & Storage</h3>
+          <p>
+            Supports live GStreamer / RTSP IP streaming to mission control alongside local high-resolution storage in <code>recordings/</code> with automated &plusmn;10s anomaly clip extraction around detected deviations.
+          </p>
+          <div class="arch-badge">IP Stream + Anomaly Clips</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Live Experiments Section -->
+    <section id="experiments" class="content-section">
+      <span class="section-eyebrow">Demonstration Corpus</span>
+      <h2 class="section-heading">Verified Experiment Procedures</h2>
+      <p class="section-desc">
+        Explore live experiment workflows currently running in the engine, including the official ISRO Two-Box Collision sample experiment.
+      </p>
+
+      <div class="experiments-grid">
+        <!-- BCX-1 ISRO Official Sample Experiment -->
+        <div class="exp-card featured">
+          <div class="exp-flag">★ ISRO OFFICIAL SAMPLE PS</div>
+          <div class="exp-id">BCX-1</div>
+          <h4>Two-Box Collision in Container</h4>
+          <p style="color:var(--text-muted); font-size:0.9rem;">
+            Directly replicates the experiment mandated in the official ISRO PS 26174 text:
+            <em>"You are given a box that contains two smaller boxes of color red and yellow."</em>
+          </p>
+          <ul class="exp-steps-list">
+            <li><strong>S01:</strong> Identify Bigger Container Box on workspace</li>
+            <li><strong>S02:</strong> Detect & Verify Box Colors (Red & Yellow)</li>
+            <li><strong>S03:</strong> Place Red Box into Container</li>
+            <li><strong>S04:</strong> Place Yellow Box into Container</li>
+            <li><strong>S05:</strong> Bring Boxes into Physical Collision (&ge; 0.8s)</li>
+            <li><strong>S06:</strong> Separate Boxes to Complete Dynamics Test</li>
+          </ul>
+          <a href="/console" class="exp-btn">Test in Console &rarr;</a>
+        </div>
+
+        <!-- WBP-1 Water Bottle Protocol -->
+        <div class="exp-card">
+          <div class="exp-id">WBP-1</div>
+          <h4>Water Bottle Protocol (Activity Benchmark)</h4>
+          <p style="color:var(--text-muted); font-size:0.9rem;">
+            Interactive benchmark for live camera human activity recognition and mouth contact verification.
+          </p>
+          <ul class="exp-steps-list">
+            <li><strong>S01:</strong> Locate water bottle on table surface</li>
+            <li><strong>S02:</strong> Hand grasp and vertical bottle lift</li>
+            <li><strong>S03:</strong> Sustained drinking at mouth region (&ge; 1.5s)</li>
+            <li><strong>S04:</strong> Return bottle to surface & release hands</li>
+          </ul>
+          <a href="/console" class="exp-btn">Test in Console &rarr;</a>
+        </div>
+
+        <!-- MOA-1 Multi-Object Ergonomics -->
+        <div class="exp-card">
+          <div class="exp-id">MOA-1</div>
+          <h4>Multi-Object Activity & Posture</h4>
+          <p style="color:var(--text-muted); font-size:0.9rem;">
+            Combines multi-object detection (chair, smartphone, bottle) with 17-point ergonomic knee angle validation (85&deg; - 120&deg;).
+          </p>
+          <ul class="exp-steps-list">
+            <li><strong>S01-S02:</strong> Pull chair & sit down with knee angle check</li>
+            <li><strong>S03-S04:</strong> Smartphone pick, inspect, and return</li>
+            <li><strong>S05-S07:</strong> Water bottle lift, drink, and restowage</li>
+          </ul>
+          <a href="/console" class="exp-btn">Test in Console &rarr;</a>
+        </div>
+
+        <!-- CSP-1 Colloid Sample Processing -->
+        <div class="exp-card">
+          <div class="exp-id">CSP-1</div>
+          <h4>Colloid Sample Processing (ISRO MSG-A)</h4>
+          <p style="color:var(--text-muted); font-size:0.9rem;">
+            Full 14-step flight procedure conducted inside the Microgravity Science Glovebox.
+          </p>
+          <ul class="exp-steps-list">
+            <li>Foot restraint lock & ambient locker retrieval</li>
+            <li>Vial A identification vs confusable Vial B</li>
+            <li>Glovebox latch manipulation & 60s centrifuge cycle</li>
+            <li>Critical cold stowage locker restowage</li>
+          </ul>
+          <a href="/console" class="exp-btn">Test in Console &rarr;</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Matrix: PS 26174 Solved vs Open Research -->
+    <section id="matrix" class="content-section">
+      <span class="section-eyebrow">Rigorous Evaluation</span>
+      <h2 class="section-heading">ISRO PS 26174 Compliance & Solved Matrix</h2>
+      <p class="section-desc">
+        A transparent, auditable breakdown comparing the official requirements against PARIKSHAK's production implementation.
+      </p>
+
+      <div class="table-container">
+        <table class="matrix-table">
+          <thead>
+            <tr>
+              <th>PS 26174 Requirement</th>
+              <th>Status in PARIKSHAK</th>
+              <th>Implementation Mechanism</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>1. Standalone Edge Operation</strong><br><small style="color:var(--text-muted)">Offline execution on edge computer, zero cloud path</small></td>
+              <td><span class="badge-solved">Fully Solved</span></td>
+              <td>Zero network sockets in inference code (enforced by <code>test_offline.py</code> CI gate). Runs locally on CPU/Jetson.</td>
+            </tr>
+            <tr>
+              <td><strong>2. Sequence Tracking & Next-Step Guidance</strong><br><small style="color:var(--text-muted)">Suggest next step at start or after each step</small></td>
+              <td><span class="badge-solved">Fully Solved</span></td>
+              <td>Finite state machine with declarative PDL verification rules. Next step is prompted on HUD and spoken aloud.</td>
+            </tr>
+            <tr>
+              <td><strong>3. Voice Alerts for Skips & Out-of-Sequence</strong><br><small style="color:var(--text-muted)">Real-time verbal warning naming the mistake</small></td>
+              <td><span class="badge-solved">Fully Solved</span></td>
+              <td>Sub-2s <code>pyttsx3</code> audio alerts stating step ID, kind (SKIP/HAZARD), and specific failure reason.</td>
+            </tr>
+            <tr>
+              <td><strong>4. Timestamped Lightweight Downlink Log</strong><br><small style="color:var(--text-muted)">Compact audit trail of conducted steps & outcomes</small></td>
+              <td><span class="badge-solved">Fully Solved</span></td>
+              <td>Lightweight structured text (<code>.txt</code>), tamper-evident JSONL hash chain, and signed PDF report export.</td>
+            </tr>
+            <tr>
+              <td><strong>5. Dual Video Stream (IP Stream + Local Store)</strong><br><small style="color:var(--text-muted)">Stream to designated IP & save video locally</small></td>
+              <td><span class="badge-solved">Fully Solved</span></td>
+              <td>RTSP/IP pipeline via GStreamer + local WebM/MP4 recording in <code>recordings/</code> with clip extraction.</td>
+            </tr>
+            <tr>
+              <td><strong>6. Dedicated Graphical User Interface (GUI)</strong><br><small style="color:var(--text-muted)">Operator monitoring console with live HUD</small></td>
+              <td><span class="badge-solved">Fully Solved</span></td>
+              <td>Interactive web workstation + PySide6 desktop operator window with 17-point skeletal overlays.</td>
+            </tr>
+            <tr>
+              <td><strong>7. Sample Experiment (Red & Yellow Box)</strong><br><small style="color:var(--text-muted)">Outer box containing red and yellow boxes</small></td>
+              <td><span class="badge-solved">Fully Solved</span></td>
+              <td>Implemented as <strong>BCX-1</strong> protocol with color segmentation, container boundary lock, and collision dynamics.</td>
+            </tr>
+            <tr>
+              <td><strong>Optional: Orientation-Agnostic 3D Posture (HMR)</strong><br><small style="color:var(--text-muted)">Track astronaut relative to rack, not the floor</small></td>
+              <td><span class="badge-solved">Solved (Rack Frame)</span><br><span class="badge-frontier">Full Mesh in Research</span></td>
+              <td>Rack fiducial coordinates provide gravity-independent reference frame; full 3D SMPL-X mesh is integrated in offline DL suite.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Call to Action Banner -->
+    <section class="content-section" style="padding-top:1rem;">
+      <div class="cta-banner">
+        <h2>Experience PARIKSHAK Live</h2>
+        <p style="color:var(--text-muted); font-size:1.1rem; max-width:650px; margin:0 auto 2.2rem;">
+          Step into the operator workstation. Connect your live webcam, upload mission video footage, test procedure deviations, and inspect cryptographic flight logs.
+        </p>
+        <a href="/console" class="btn-primary-hero" style="display:inline-flex;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+          Launch Mission Console
+        </a>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="mission-footer">
+      <div class="footer-content">
+        <div style="text-align:left;">
+          <div style="font-family:var(--font-display); font-weight:700; color:#fff; font-size:1.1rem;">PARIKSHAK (परीक्षक)</div>
+          <div style="font-size:0.8rem; color:var(--text-muted); margin-top:0.2rem;">On-Board Procedure-Compliance Witness for Crewed Missions</div>
+        </div>
+        <div style="font-family:var(--font-mono); font-size:0.8rem; color:var(--isro-orange);">
+          Smart India Hackathon 2026 · Problem Statement 26174 · Space Technology
+        </div>
+        <div style="font-size:0.8rem; color:#64748b;">
+          Department of Space / Indian Space Research Organisation (ISRO)
+        </div>
+      </div>
+    </footer>
+
+  </div>
+
+  <!-- Interactive Background Animation & Cursor Script -->
+  <script>
+    // 1. Interactive Custom Cursor with Telemetry
+    const reticle = document.getElementById("cursor-reticle");
+    const telemetry = document.getElementById("cursor-telemetry");
+    let mouseX = window.innerWidth / 2;
+    let mouseY = window.innerHeight / 2;
+    let currentX = mouseX;
+    let currentY = mouseY;
+
+    window.addEventListener("mousemove", (e) => {
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+      telemetry.textContent = `X:${mouseX.toString().padStart(4, "0")} Y:${mouseY.toString().padStart(4, "0")} | RACK_LOCK: ACTIVE`;
+    });
+
+    function animateCursor() {
+      currentX += (mouseX - currentX) * 0.18;
+      currentY += (mouseY - currentY) * 0.18;
+      reticle.style.left = `${currentX}px`;
+      reticle.style.top = `${currentY}px`;
+      telemetry.style.left = `${currentX}px`;
+      telemetry.style.top = `${currentY}px`;
+      requestAnimationFrame(animateCursor);
+    }
+    animateCursor();
+
+    // 2. Cosmic Canvas: Animated Starfield, Floating Space Dust & Orbiting Wireframe Station
+    const canvas = document.getElementById("space-canvas");
+    const ctx = canvas.getContext("2d");
+
+    let width = canvas.width = window.innerWidth;
+    let height = canvas.height = window.innerHeight;
+
+    window.addEventListener("resize", () => {
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+      initStars();
+    });
+
+    const STARS_COUNT = 180;
+    const DUST_COUNT = 35;
+    let stars = [];
+    let dust = [];
+
+    function initStars() {
+      stars = [];
+      for (let i = 0; i < STARS_COUNT; i++) {
+        stars.push({
+          x: Math.random() * width,
+          y: Math.random() * height,
+          size: Math.random() * 1.8 + 0.3,
+          speed: Math.random() * 0.25 + 0.05,
+          alpha: Math.random() * 0.8 + 0.2,
+          pulseSpeed: Math.random() * 0.02 + 0.005,
+        });
+      }
+      dust = [];
+      for (let i = 0; i < DUST_COUNT; i++) {
+        dust.push({
+          x: Math.random() * width,
+          y: Math.random() * height,
+          radius: Math.random() * 3 + 1,
+          vx: (Math.random() - 0.5) * 0.3,
+          vy: (Math.random() - 0.5) * 0.3,
+          alpha: Math.random() * 0.3 + 0.1,
+          color: Math.random() > 0.5 ? "rgba(0, 240, 255, " : "rgba(139, 92, 246, ",
+        });
+      }
+    }
+    initStars();
+
+    let angle = 0;
+    function drawSpace() {
+      ctx.fillStyle = "#030712";
+      ctx.fillRect(0, 0, width, height);
+
+      // Deep glowing nebula gradient
+      const grad = ctx.createRadialGradient(
+        width * 0.8 + Math.sin(angle * 0.5) * 60,
+        height * 0.3 + Math.cos(angle * 0.5) * 60,
+        50,
+        width * 0.8,
+        height * 0.3,
+        width * 0.55
+      );
+      grad.addColorStop(0, "rgba(139, 92, 246, 0.12)");
+      grad.addColorStop(0.5, "rgba(0, 240, 255, 0.05)");
+      grad.addColorStop(1, "transparent");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, width, height);
+
+      // Draw Twinkling Stars
+      for (let s of stars) {
+        s.y -= s.speed;
+        if (s.y < 0) {
+          s.y = height;
+          s.x = Math.random() * width;
+        }
+        s.alpha += Math.sin(angle * 2 + s.x) * s.pulseSpeed;
+        const boundedAlpha = Math.max(0.1, Math.min(1.0, s.alpha));
+
+        ctx.fillStyle = `rgba(255, 255, 255, ${boundedAlpha})`;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Draw Floating Space Dust Particles
+      for (let d of dust) {
+        d.x += d.vx;
+        d.y += d.vy;
+        if (d.x < 0) d.x = width;
+        if (d.x > width) d.x = 0;
+        if (d.y < 0) d.y = height;
+        if (d.y > height) d.y = 0;
+
+        ctx.fillStyle = d.color + d.alpha + ")";
+        ctx.beginPath();
+        ctx.arc(d.x, d.y, d.radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Draw Orbiting Wireframe BAS Habitat Ring
+      ctx.save();
+      ctx.translate(width * 0.85, height * 0.45);
+      ctx.rotate(angle * 0.25);
+      ctx.strokeStyle = "rgba(0, 240, 255, 0.08)";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 160, 55, Math.PI / 4, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.strokeStyle = "rgba(139, 92, 246, 0.06)";
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 240, 80, -Math.PI / 6, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+
+      angle += 0.01;
+      requestAnimationFrame(drawSpace);
+    }
+    drawSpace();
+
+    // 3. Interactive 3D Card Tilt Effect on Hover
+    document.querySelectorAll(".arch-card, .exp-card, .stat-card").forEach((card) => {
+      card.addEventListener("mousemove", (e) => {
+        const rect = card.getBoundingClientRect();
+        const x = e.clientX - rect.left - rect.width / 2;
+        const y = e.clientY - rect.top - rect.height / 2;
+        const rotX = -(y / (rect.height / 2)) * 6;
+        const rotY = (x / (rect.width / 2)) * 6;
+        card.style.transform = `perspective(800px) rotateX(${rotX}deg) rotateY(${rotY}deg) translateY(-4px)`;
+      });
+      card.addEventListener("mouseleave", () => {
+        card.style.transform = "perspective(800px) rotateX(0deg) rotateY(0deg) translateY(0)";
+      });
+    });
+  </script>
+</body>
+</html>

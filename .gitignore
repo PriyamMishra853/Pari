@@ -17,3 +17,8 @@ recordings/*
 !recordings/.gitkeep
 reports/*
 !reports/.gitkeep
+
+# Environment
+.venv/
+venv/
+.env
