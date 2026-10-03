@@ -1,0 +1,23 @@
+# =============================================================================
+# PARIKSHAK: Camera Calibration & Intrinsic Matrix
+# =============================================================================
+camera:
+  model: "pinhole"
+  resolution: [640, 480]
+  fps: 30
+
+  # Intrinsic Matrix K:
+  #   [ fx   0   cx ]
+  #   [  0  fy   cy ]
+  #   [  0   0    1 ]
+  intrinsics:
+    fx: 615.0
+    fy: 615.0
+    cx: 320.0
+    cy: 240.0
+
+  # Radial and tangential distortion coefficients: [k1, k2, p1, p2, k3]
+  distortion_coefficients: [0.05, -0.08, 0.001, 0.001, 0.0]
+
+  calibration_status: "NOMINAL_ESTIMATED"
+  last_calibrated_utc: "2026-10-01T00:00:00Z"

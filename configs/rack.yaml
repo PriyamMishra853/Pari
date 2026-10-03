@@ -1,0 +1,51 @@
+# =============================================================================
+# PARIKSHAK: Fixed Payload Rack Coordinate System (Rack-as-Gravity)
+# =============================================================================
+# In microgravity, floor-relative Earth frames fail. The payload rack serves as
+# the permanent spatial reference frame:
+#   X = rack horizontal direction (+X = right)
+#   Y = rack vertical direction (+Y = up relative to rack face)
+#   Z = rack depth normal (+Z = outward towards crew)
+#
+# AprilTags bonded to known positions define T_rack_camera in SE(3).
+# All 3D human mesh joints and payload tools are transformed into P_rack:
+#   P_rack = T_rack_camera * P_camera
+# =============================================================================
+
+rack:
+  id: "BENCH-RACK-01"
+  name: "Bharatiya Antariksh Station Experiment Rack A1"
+  version: "1.0"
+  units: "metres"
+
+  coordinate_system:
+    x_axis: "rack horizontal (+X right)"
+    y_axis: "rack vertical (+Y up)"
+    z_axis: "rack depth normal (+Z outward)"
+    gravity_invariant: true
+
+  fiducials:
+    family: "tag36h11"
+    tag_size_m: 0.080
+    tags:
+      - id: 10
+        label: "rack_origin_bl"
+        pos: [0.0, 0.0, 0.0]
+      - id: 11
+        label: "rack_bottom_right"
+        pos: [1.2, 0.0, 0.0]
+      - id: 12
+        label: "rack_top_left"
+        pos: [0.0, 1.0, 0.0]
+      - id: 13
+        label: "rack_top_right"
+        pos: [1.2, 1.0, 0.0]
+
+  payload_zones:
+    workspace:
+      min: [-0.60, -0.50, -0.10]
+      max: [0.60, 0.50, 0.40]
+    container_tray:
+      min: [-0.35, -0.25, -0.05]
+      max: [0.35, 0.25, 0.25]
+    interaction_threshold_m: 0.15

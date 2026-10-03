@@ -114,6 +114,147 @@
       white-space: nowrap;
     }
 
+    /* Scroll-driven Spaceship & Astronaut Descent */
+    #scroll-spaceship-rig {
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 999;
+      pointer-events: auto;
+      cursor: pointer;
+      will-change: transform;
+      filter: drop-shadow(0 0 16px rgba(0, 240, 255, 0.45));
+    }
+    .ship-hull-wrap {
+      position: relative;
+      width: 76px;
+      height: 96px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .ship-flame {
+      position: absolute;
+      bottom: -14px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 14px;
+      height: 24px;
+      background: linear-gradient(180deg, #ffffff, #00f0ff 40%, #ff9933 80%, transparent);
+      border-radius: 50% 50% 20% 20%;
+      filter: blur(1px);
+      animation: flameFlicker 0.12s infinite alternate;
+      box-shadow: 0 0 16px #ff9933, 0 0 30px #00f0ff;
+    }
+    @keyframes flameFlicker {
+      0% { height: 18px; transform: translateX(-50%) scaleX(0.9); opacity: 0.85; }
+      100% { height: 28px; transform: translateX(-50%) scaleX(1.15); opacity: 1; }
+    }
+    .ship-label {
+      position: absolute;
+      top: -22px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--cyan);
+      background: rgba(3, 7, 18, 0.85);
+      border: 1px solid var(--border-space);
+      padding: 2px 6px;
+      border-radius: 4px;
+      white-space: nowrap;
+      pointer-events: none;
+      letter-spacing: 0.5px;
+    }
+
+    /* Semicircular Moon Surface */
+    #moon-landing-zone {
+      position: relative;
+      width: 100%;
+      height: 320px;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      margin-top: 3rem;
+      pointer-events: none;
+    }
+    .moon-semicircle {
+      position: relative;
+      width: min(1200px, 94vw);
+      height: 250px;
+      border-radius: 600px 600px 0 0;
+      background: radial-gradient(circle at 50% 20%, #2a3447 0%, #151d2c 55%, #0b111a 90%);
+      border-top: 3px solid rgba(0, 240, 255, 0.4);
+      box-shadow: 0 -15px 60px rgba(0, 240, 255, 0.25), inset 0 20px 40px rgba(255, 255, 255, 0.12);
+      display: flex;
+      justify-content: center;
+    }
+    .moon-crater {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(10, 16, 26, 0.65);
+      border: 1.5px solid rgba(255, 255, 255, 0.08);
+      box-shadow: inset 2px 2px 6px rgba(0, 0, 0, 0.8), inset -2px -2px 6px rgba(255, 255, 255, 0.06);
+    }
+    .crater-1 { width: 54px; height: 38px; top: 40px; left: 18%; }
+    .crater-2 { width: 90px; height: 60px; top: 75px; left: 68%; }
+    .crater-3 { width: 40px; height: 28px; top: 110px; left: 38%; }
+    .crater-4 { width: 70px; height: 46px; top: 45px; left: 48%; }
+    .moon-beacon {
+      position: absolute;
+      top: -14px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+    .beacon-pulse {
+      width: 14px;
+      height: 14px;
+      background: var(--cyan);
+      border-radius: 50%;
+      box-shadow: 0 0 20px var(--cyan);
+      animation: pulse 1.4s infinite;
+    }
+    .beacon-text {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: #fff;
+      background: rgba(3, 7, 18, 0.9);
+      border: 1px solid var(--cyan);
+      padding: 3px 8px;
+      border-radius: 4px;
+      letter-spacing: 1px;
+      box-shadow: 0 0 12px rgba(0, 240, 255, 0.4);
+    }
+    .touchdown-banner {
+      position: absolute;
+      bottom: 25px;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: var(--emerald);
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid var(--emerald);
+      padding: 6px 18px;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: all 0.4s ease;
+      letter-spacing: 1px;
+    }
+    .touchdown-banner.active {
+      opacity: 1;
+      transform: translateY(0);
+      box-shadow: 0 0 20px rgba(16, 185, 129, 0.4);
+    }
+
     /* App Container */
     .app-wrap {
       position: relative;
@@ -752,6 +893,31 @@
   </div>
   <div id="cursor-telemetry">MET T+00:14:32 | LEO 400KM | BAS-1</div>
 
+  <!-- Interactive Spaceship Rig with Astronaut Cockpit (Follows Scroll to Moon) -->
+  <div id="scroll-spaceship-rig" title="Orbital Descent Module (Follows Scroll Progress)">
+    <div class="ship-hull-wrap">
+      <div class="ship-label" id="ship-altitude-label">ALT: 420 KM (ORBIT)</div>
+      <svg width="68" height="82" viewBox="0 0 100 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="2" y="55" width="26" height="14" rx="2" fill="#1e293b" stroke="#00f0ff" stroke-width="1.5"/>
+        <line x1="15" y1="55" x2="15" y2="69" stroke="#00f0ff" stroke-width="1"/>
+        <rect x="72" y="55" width="26" height="14" rx="2" fill="#1e293b" stroke="#00f0ff" stroke-width="1.5"/>
+        <line x1="85" y1="55" x2="85" y2="69" stroke="#00f0ff" stroke-width="1"/>
+        <path d="M50 10 C32 35 30 75 32 95 L68 95 C70 75 68 35 50 10 Z" fill="#e2e8f0" stroke="#00f0ff" stroke-width="2"/>
+        <rect x="26" y="80" width="8" height="12" rx="2" fill="#64748b"/>
+        <rect x="66" y="80" width="8" height="12" rx="2" fill="#64748b"/>
+        <path d="M30 95 L70 95 L65 102 L35 102 Z" fill="#334155"/>
+        <ellipse cx="50" cy="46" rx="14" ry="16" fill="#0f172a" stroke="#38bdf8" stroke-width="2"/>
+        <circle cx="50" cy="45" r="9" fill="#f8fafc"/>
+        <ellipse cx="50" cy="45" rx="7" ry="5" fill="#f59e0b" stroke="#d97706" stroke-width="1"/>
+        <path d="M47 43 Q50 41 53 43" stroke="#fff" stroke-width="1" stroke-linecap="round"/>
+        <rect x="44" y="68" width="12" height="2" fill="#ff9933"/>
+        <rect x="44" y="70" width="12" height="2" fill="#ffffff"/>
+        <rect x="44" y="72" width="12" height="2" fill="#138808"/>
+      </svg>
+      <div class="ship-flame" id="ship-main-thruster"></div>
+    </div>
+  </div>
+
   <div class="app-wrap">
 
     <!-- Top Mission Header -->
@@ -1123,6 +1289,24 @@
       </div>
     </section>
 
+    <!-- Semicircular Moon Surface Landing Zone -->
+    <div id="moon-landing-zone">
+      <div class="moon-semicircle">
+        <div class="moon-crater crater-1"></div>
+        <div class="moon-crater crater-2"></div>
+        <div class="moon-crater crater-3"></div>
+        <div class="moon-crater crater-4"></div>
+        <div class="moon-beacon">
+          <div class="beacon-pulse"></div>
+          <div class="beacon-text">BAS-1 LUNAR SURFACE SITE</div>
+        </div>
+        <div id="touchdown-banner" class="touchdown-banner">
+          <span style="display:inline-block; width:8px; height:8px; background:var(--emerald); border-radius:50%; box-shadow:0 0 8px var(--emerald);"></span>
+          <span>ASTRONAUT TOUCHDOWN NOMINAL · BAS-1 LUNAR BASE REACHED</span>
+        </div>
+      </div>
+    </div>
+
     <!-- Footer -->
     <footer class="mission-footer">
       <div class="footer-content">
@@ -1299,6 +1483,68 @@
         card.style.transform = "perspective(800px) rotateX(0deg) rotateY(0deg) translateY(0)";
       });
     });
+
+    // 4. Scrollbar-Driven Spaceship Descent & Lunar Touchdown Animation
+    const spaceship = document.getElementById("scroll-spaceship-rig");
+    const altLabel = document.getElementById("ship-altitude-label");
+    const touchdownBanner = document.getElementById("touchdown-banner");
+
+    function updateSpaceshipDescent() {
+      if (!spaceship) return;
+      const scrollY = window.scrollY || window.pageYOffset;
+      const maxScroll = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+      const progress = Math.min(1.0, Math.max(0.0, scrollY / maxScroll));
+
+      const winW = window.innerWidth;
+      const winH = window.innerHeight;
+
+      // Start in upper orbital position: right ~8%, top ~16%
+      // Descent trajectory lands directly on center of semicircular moon at bottom
+      const startX = winW * 0.90;
+      const startY = winH * 0.16;
+      const endX = winW * 0.50;
+      const endY = winH - 180;
+
+      // Parabolic flight arc
+      const currentX = startX + (endX - startX) * Math.sin(progress * Math.PI * 0.5);
+      const currentY = startY + (endY - startY) * progress;
+
+      // Entry attitude angle: tilts for atmospheric entry, straightens upright for landing touchdown
+      let angle = 0;
+      if (progress < 0.85) {
+        angle = -14 + progress * 32;
+      } else {
+        angle = (1 - (progress - 0.85) / 0.15) * 12;
+      }
+
+      spaceship.style.transform = `translate3d(${currentX - 38}px, ${currentY - 48}px, 0) rotate(${angle}deg)`;
+
+      // Dynamic Altitude & Touchdown Status
+      const km = Math.max(0, Math.round((1 - progress) * 420));
+      if (progress < 0.96) {
+        altLabel.textContent = `ALT: ${km} KM (DESCENT)`;
+        altLabel.style.color = "var(--cyan)";
+        if (touchdownBanner) touchdownBanner.classList.remove("active");
+      } else {
+        altLabel.textContent = `ALT: 0.0 M (TOUCHDOWN)`;
+        altLabel.style.color = "var(--emerald)";
+        if (touchdownBanner) touchdownBanner.classList.add("active");
+      }
+    }
+
+    window.addEventListener("scroll", updateSpaceshipDescent, { passive: true });
+    window.addEventListener("resize", updateSpaceshipDescent);
+    // Smooth scroll down to moon or back up when clicking the spaceship
+    if (spaceship) {
+      spaceship.addEventListener("click", () => {
+        const isNearBottom = (window.scrollY || window.pageYOffset) > (document.documentElement.scrollHeight - window.innerHeight) * 0.5;
+        window.scrollTo({
+          top: isNearBottom ? 0 : document.documentElement.scrollHeight,
+          behavior: "smooth"
+        });
+      });
+    }
+    updateSpaceshipDescent();
   </script>
 </body>
 </html>

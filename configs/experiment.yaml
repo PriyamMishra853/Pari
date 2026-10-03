@@ -1,0 +1,63 @@
+# =============================================================================
+# PARIKSHAK: Default Experiment Protocol Configuration
+# =============================================================================
+experiment:
+  id: "BCX-1"
+  title: "Two-Box Collision in Container (ISRO Sample Experiment)"
+  rack_id: "BENCH-RACK-01"
+  criticality: "nominal"
+  estimated_duration_s: 45
+
+  steps:
+    - id: "S01"
+      name: "APPROACH_PAYLOAD"
+      description: "Position and verify outer container box on rack workspace"
+      expected_activity: "APPROACH_PAYLOAD"
+      hold_duration_s: 0.7
+      target_entity: "container_box"
+
+    - id: "S02"
+      name: "INSPECT_PAYLOAD"
+      description: "Detect and verify box colors (Red & Yellow)"
+      expected_activity: "INSPECT_PAYLOAD"
+      hold_duration_s: 0.6
+      target_entity: ["red_box", "yellow_box"]
+
+    - id: "S03"
+      name: "PLACE_TOOL"
+      description: "Place Red Box into Container"
+      expected_activity: "PLACE_TOOL"
+      hold_duration_s: 0.6
+      target_entity: "red_box"
+
+    - id: "S04"
+      name: "PLACE_TOOL"
+      description: "Place Yellow Box into Container"
+      expected_activity: "PLACE_TOOL"
+      hold_duration_s: 0.6
+      target_entity: "yellow_box"
+
+    - id: "S05"
+      name: "MOVE_TOOL"
+      description: "Bring Red and Yellow boxes into physical collision (held >= 0.8s)"
+      expected_activity: "MOVE_TOOL"
+      hold_duration_s: 0.8
+      collision_required: true
+
+    - id: "S06"
+      name: "RETURN_POSITION"
+      description: "Separate boxes to complete dynamics test"
+      expected_activity: "RETURN_POSITION"
+      hold_duration_s: 0.5
+
+  activities:
+    - "IDLE"
+    - "APPROACH_PAYLOAD"
+    - "REACH_TOOL"
+    - "GRASP_TOOL"
+    - "MOVE_TOOL"
+    - "PLACE_TOOL"
+    - "RELEASE_TOOL"
+    - "INSPECT_PAYLOAD"
+    - "RETURN_POSITION"
+    - "UNEXPECTED_INTERACTION"

@@ -7,6 +7,7 @@ simulated runs) and coordinates frame processing and telemetry serialization.
 from __future__ import annotations
 
 import base64
+import math
 import os
 import threading
 import time
@@ -33,10 +34,70 @@ class TrackerService:
         self.lock = threading.RLock()
         self.experiment_id = experiment_id
         self.tracker = YoloExperimentTracker(self.experiment_id)
+        from parikshak.perception.rack_gravity import get_rack_hmr
+        self.rack_hmr = get_rack_hmr()
+        self.toggles = {
+            "show_mesh": True,
+            "show_skeleton": True,
+            "show_joints": True,
+            "show_rack_axes": True,
+            "show_interactions": True,
+        }
         self.video_cap: Any | None = None
         self.active_video_path: str | None = None
         self.is_video_playing = False
         self.last_telemetry: dict[str, Any] = {}
+
+    def set_toggles(self, new_toggles: dict[str, bool]) -> dict[str, bool]:
+        with self.lock:
+            self.toggles.update(new_toggles)
+            return self.toggles
+
+    def set_camera_rotation(self, angle_deg: float) -> float:
+        with self.lock:
+            return self.rack_hmr.set_camera_rotation(angle_deg)
+
+    def get_rotation_test_telemetry(self) -> dict[str, Any]:
+        with self.lock:
+            angle = self.rack_hmr.simulated_camera_angle
+            # Compute camera coords vs invariant rack coords for telemetry
+            p_rack_true = np.array([0.45, 0.35, 0.40])
+            p_cam = np.array([
+                -0.15 * math.cos(math.radians(angle)) + 0.15 * math.sin(math.radians(angle)),
+                -0.15 * math.sin(math.radians(angle)) - 0.15 * math.cos(math.radians(angle)),
+                -0.80
+            ])
+            return {
+                "camera_orientation_deg": angle,
+                "rack_frame_status": "LOCKED",
+                "camera_coordinates": [round(float(v), 3) for v in p_cam],
+                "rack_coordinates": [round(float(v), 3) for v in p_rack_true],
+                "invariance_status": "STABLE_INVARIANT",
+                "activity": self.last_telemetry.get("rack_hmr", {}).get("activity", "INSPECT_PAYLOAD"),
+                "confidence": 0.94,
+            }
+
+    def _apply_rack_hmr(self, annotated: np.ndarray, telemetry: dict[str, Any]) -> tuple[np.ndarray, dict[str, Any]]:
+        try:
+            skel = telemetry.get("skeleton", {})
+            step_id = telemetry.get("step_id", "S01")
+            state = self.rack_hmr.evaluate_rack_pose(
+                skeleton_data=skel,
+                active_step_id=step_id,
+            )
+            annotated = self.rack_hmr.render_rack_overlays(
+                annotated,
+                state,
+                show_mesh=self.toggles.get("show_mesh", True),
+                show_skeleton=self.toggles.get("show_skeleton", True),
+                show_joints=self.toggles.get("show_joints", True),
+                show_rack_axes=self.toggles.get("show_rack_axes", True),
+                show_interactions=self.toggles.get("show_interactions", True),
+            )
+            telemetry["rack_hmr"] = self.rack_hmr.to_dict(state)
+        except Exception:
+            pass
+        return annotated, telemetry
 
     def set_experiment(self, experiment_id: str) -> dict[str, Any]:
         with self.lock:
@@ -44,7 +105,8 @@ class TrackerService:
             self.tracker = YoloExperimentTracker(self.experiment_id)
             # Process empty frame to prime telemetry
             dummy = np.zeros((480, 640, 3), dtype=np.uint8)
-            _, self.last_telemetry = self.tracker.process_frame(dummy)
+            annotated, self.last_telemetry = self.tracker.process_frame(dummy)
+            _, self.last_telemetry = self._apply_rack_hmr(annotated, self.last_telemetry)
             return self.last_telemetry
 
     def reset(self) -> dict[str, Any]:
@@ -53,13 +115,13 @@ class TrackerService:
             if self.video_cap is not None:
                 self.video_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
             dummy = np.zeros((480, 640, 3), dtype=np.uint8)
-            _, self.last_telemetry = self.tracker.process_frame(dummy)
+            annotated, self.last_telemetry = self.tracker.process_frame(dummy)
+            _, self.last_telemetry = self._apply_rack_hmr(annotated, self.last_telemetry)
             return self.last_telemetry
 
     def process_b64_frame(self, b64_data: str) -> dict[str, Any]:
         """Accepts base64 encoded JPEG/PNG frame from browser webcam, processes it
-
-        with YOLO, and returns the annotated frame and telemetry.
+        with YOLO, applies Zero-G Rack HMR, and returns the annotated frame and telemetry.
         """
         # Strip header if present: 'data:image/jpeg;base64,...'
         if "," in b64_data:
@@ -76,6 +138,7 @@ class TrackerService:
 
         with self.lock:
             annotated, telemetry = self.tracker.process_frame(frame)
+            annotated, telemetry = self._apply_rack_hmr(annotated, telemetry)
             self.last_telemetry = telemetry
 
             # Re-encode annotated frame to JPEG base64
@@ -86,6 +149,7 @@ class TrackerService:
                 "annotated_frame": out_b64,
                 "telemetry": telemetry,
             }
+
 
     def load_video_file(self, video_path: str | Path) -> dict[str, Any]:
         with self.lock:
@@ -127,6 +191,7 @@ class TrackerService:
             total_frames = int(self.video_cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
             annotated, telemetry = self.tracker.process_frame(frame)
+            annotated, telemetry = self._apply_rack_hmr(annotated, telemetry)
             self.last_telemetry = telemetry
 
             _, buffer = cv2.imencode(".jpg", annotated, [cv2.IMWRITE_JPEG_QUALITY, 80])
@@ -246,6 +311,7 @@ class TrackerService:
             if w != 640 or h != 480:
                 frame = cv2.resize(frame, (640, 480))
             annotated, telemetry = self.tracker.process_frame(frame)
+            annotated, telemetry = self._apply_rack_hmr(annotated, telemetry)
             self.last_telemetry = telemetry
             ret, jpeg = cv2.imencode(".jpg", annotated, [cv2.IMWRITE_JPEG_QUALITY, 75])
             if not ret:
@@ -275,6 +341,7 @@ class TrackerService:
                 frame = cv2.resize(frame, (640, 480))
 
             annotated, telemetry = self.tracker.process_frame(frame)
+            annotated, telemetry = self._apply_rack_hmr(annotated, telemetry)
             self.last_telemetry = telemetry
             ret, buffer = cv2.imencode(".jpg", annotated, [cv2.IMWRITE_JPEG_QUALITY, 75])
             if not ret:

@@ -55,6 +55,7 @@ def create_app():
     from fastapi.staticfiles import StaticFiles
     from fastapi.middleware.cors import CORSMiddleware
     from parikshak.perception.tracker_service import get_tracker_service
+    from backend.flight_copilot import get_flight_copilot
 
     app = FastAPI(title="PARIKSHAK Mission Server", docs_url=None, redoc_url=None)
     app.add_middleware(
@@ -66,6 +67,7 @@ def create_app():
     )
 
     tracker_svc = get_tracker_service()
+    copilot = get_flight_copilot()
 
     # Mount static assets
     static_p = FRONTEND_DIR / "static"
@@ -198,6 +200,53 @@ def create_app():
     def tracker_telemetry() -> dict[str, Any]:
         return tracker_svc.get_telemetry()
 
+    @app.post("/api/tracker/set_camera_rotation")
+    async def tracker_set_rotation(req: Request) -> dict[str, Any]:
+        data = await req.json()
+        angle = float(data.get("angle", 0.0))
+        tracker_svc.set_camera_rotation(angle)
+        return tracker_svc.get_rotation_test_telemetry()
+
+    @app.get("/api/tracker/rotation_test")
+    def tracker_rotation_test() -> dict[str, Any]:
+        return tracker_svc.get_rotation_test_telemetry()
+
+    @app.post("/api/tracker/toggles")
+    async def tracker_set_toggles(req: Request) -> dict[str, Any]:
+        data = await req.json()
+        return {"toggles": tracker_svc.set_toggles(data)}
+
+    @app.get("/api/tracker/sam3d_state")
+    def tracker_sam3d_state() -> dict[str, Any]:
+        with tracker_svc.lock:
+            state_data = tracker_svc.last_telemetry.get("rack_hmr")
+            if not state_data:
+                dummy_state = tracker_svc.rack_hmr.evaluate_rack_pose({})
+                state_data = tracker_svc.rack_hmr.to_dict(dummy_state)
+            return state_data
+
+    @app.post("/api/guide/review_step")
+    async def guide_review_step(req: Request) -> dict[str, Any]:
+        data = await req.json()
+        exp_id = data.get("experiment_id", tracker_svc.experiment_id)
+        step_id = data.get("step_id", tracker_svc.last_telemetry.get("step_id", "S01"))
+        return copilot.review_current_step(exp_id, step_id, tracker_svc.last_telemetry)
+
+    @app.post("/api/guide/convey_next")
+    async def guide_convey_next(req: Request) -> dict[str, Any]:
+        data = await req.json()
+        exp_id = data.get("experiment_id", tracker_svc.experiment_id)
+        curr_step = data.get("current_step_id", tracker_svc.last_telemetry.get("step_id", "S01"))
+        return copilot.convey_next_step(exp_id, curr_step, tracker_svc.last_telemetry)
+
+    @app.post("/api/experiment/create_custom")
+    async def experiment_create_custom(req: Request) -> dict[str, Any]:
+        data = await req.json()
+        title = data.get("title", "Custom Payload Procedure")
+        description = data.get("description", "User-defined on-board experiment")
+        steps = data.get("steps", [])
+        return copilot.create_custom_experiment(title, description, steps)
+
     @app.post("/api/tracker/upload_video")
     async def tracker_upload_video(file: UploadFile = File(...)) -> dict[str, Any]:
         upload_dir = ROOT / "runs" / "uploads"
@@ -319,10 +368,10 @@ def main(argv: list[str] | None = None) -> int:
 
     url = f"http://{args.host}:{args.port}/"
     print(f"\n=======================================================")
-    print(f"🚀 PARIKSHAK Mission Server live at {url}")
-    print(f"   • Landing Page:   {url}")
-    print(f"   • Flight Console: {url}console")
-    print(f"   • SIH Deck:       {url}presentation")
+    print(f"[OK] PARIKSHAK Mission Server live at {url}")
+    print(f"   * Landing Page:   {url}")
+    print(f"   * Flight Console: {url}console")
+    print(f"   * SIH Deck:       {url}presentation")
     print(f"=======================================================\n")
 
     if not args.no_browser:
