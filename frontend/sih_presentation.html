@@ -2,24 +2,25 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>PARIKSHAK - SIH 2026 Presentation Deck</title>
+  <title>PARIKSHAK - Official SIH 2026 Submission Deck (Team UnfilteredEngineers)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Merriweather:wght@700;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Merriweather:wght@700;900&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
   <style>
     :root {
-      --navy: #0A2540;
-      --deep-blue: #003366;
-      --accent-blue: #1B59F8;
+      --navy: #0A192F;
+      --deep-blue: #0A2540;
+      --accent-blue: #2D5BD8;
       --emerald: #10B981;
       --crit: #EF4444;
       --amber: #F59E0B;
-      --card-bg: #F8FAFC;
-      --border: #E2E8F0;
+      --orange: #FF9933;
+      --border: #CBD5E1;
+      --card-bg: #FFFFFF;
       --text: #0F172A;
       --muted: #475569;
-      --light-bg: #F1F5F9;
+      --light-bg: #F8FAFC;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -39,15 +40,15 @@
       position: sticky;
       top: 12px;
       z-index: 1000;
-      background: rgba(15, 23, 42, 0.92);
+      background: rgba(15, 23, 42, 0.94);
       backdrop-filter: blur(12px);
-      border: 1px solid rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.18);
       border-radius: 999px;
-      padding: 8px 18px;
+      padding: 8px 20px;
       display: flex;
-      gap: 12px;
+      gap: 14px;
       align-items: center;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
       margin-bottom: 24px;
     }
 
@@ -58,7 +59,7 @@
       color: #fff;
       font-size: 13px;
       font-weight: 600;
-      padding: 7px 15px;
+      padding: 7px 16px;
       border-radius: 999px;
       cursor: pointer;
       display: inline-flex;
@@ -69,14 +70,14 @@
     }
     .btn:hover { background: rgba(255, 255, 255, 0.22); transform: translateY(-1px); }
     .btn.primary { background: var(--accent-blue); color: #fff; }
-    .btn.primary:hover { background: #2563eb; }
+    .btn.primary:hover { background: #1e40af; }
     .btn.emerald { background: var(--emerald); color: #fff; }
     .btn.emerald:hover { background: #059669; }
 
     .nav-counter {
       color: #94A3B8;
       font-size: 13px;
-      font-weight: 600;
+      font-weight: 700;
       padding: 0 6px;
       font-family: 'JetBrains Mono', monospace;
     }
@@ -87,7 +88,7 @@
       max-width: 1280px;
       display: flex;
       flex-direction: column;
-      gap: 36px;
+      gap: 40px;
       padding: 0 20px;
     }
 
@@ -96,13 +97,13 @@
       width: 100%;
       aspect-ratio: 16 / 9;
       background: #FFFFFF;
-      border-radius: 14px;
+      border-radius: 12px;
       position: relative;
       overflow: hidden;
-      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+      box-shadow: 0 16px 45px rgba(0, 0, 0, 0.45);
       display: flex;
       flex-direction: column;
-      padding: 34px 44px 50px;
+      padding: 28px 36px 44px;
       page-break-after: always;
     }
 
@@ -111,23 +112,26 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 22px;
+      margin-bottom: 16px;
       position: relative;
     }
 
-    .team-badge {
-      display: inline-flex;
+    .team-badge-wrap {
+      display: flex;
       align-items: center;
-      gap: 6px;
-      padding: 6px 14px;
+      gap: 8px;
+    }
+    .team-oval {
+      border: 1.5px solid #64748B;
       border-radius: 999px;
-      border: 1px solid var(--border);
-      background: var(--card-bg);
+      padding: 4px 12px;
       font-size: 12px;
       font-weight: 700;
-      color: var(--navy);
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
+      color: #0F172A;
+      text-transform: lowercase;
+      letter-spacing: -0.2px;
+      line-height: 1.1;
+      text-align: center;
     }
 
     .slide-title {
@@ -135,137 +139,171 @@
       left: 50%;
       transform: translateX(-50%);
       font-family: 'Merriweather', Georgia, serif;
-      font-size: 26px;
+      font-size: 24px;
       font-weight: 900;
-      color: var(--navy);
-      letter-spacing: -0.02em;
+      color: #0A192F;
+      letter-spacing: -0.01em;
       white-space: nowrap;
     }
 
-    .sih-tag {
-      text-align: right;
-      font-size: 11px;
-      font-weight: 800;
-      line-height: 1.25;
-      color: var(--deep-blue);
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
+    .sih-logo-wrap {
       display: flex;
       align-items: center;
       gap: 8px;
+      text-align: right;
     }
-    .sih-tag-bulb {
-      width: 22px;
-      height: 22px;
-      background: linear-gradient(135deg, #FF9933, #FFFFFF, #138808);
-      border: 1px solid #CBD5E1;
+    .sih-text {
+      font-size: 10px;
+      font-weight: 800;
+      line-height: 1.2;
+      color: #0F172A;
+      text-transform: uppercase;
+    }
+    .sih-bulb-icon {
+      width: 26px;
+      height: 26px;
+      background: linear-gradient(135deg, #FF9933 33%, #FFFFFF 33% 66%, #138808 66%);
+      border: 1.5px solid #0F172A;
       border-radius: 50%;
-      display: inline-block;
     }
 
-    /* Blue Bottom Bar (Official Canva Template match) */
+    /* Blue Bottom Bar (Official SIH Idea Submission Template) */
     .slide-footer-bar {
       position: absolute;
       bottom: 0;
       left: 0;
       right: 0;
-      height: 38px;
-      background: var(--accent-blue);
+      height: 32px;
+      background: #2D5BD8;
       color: #FFFFFF;
       display: flex;
       justify-content: center;
       align-items: center;
-      font-size: 12px;
+      font-size: 11.5px;
       font-weight: 600;
-      letter-spacing: 0.03em;
+      letter-spacing: 0.02em;
     }
-
-    /* Grid Layouts */
-    .grid-2 {
-      display: grid;
-      grid-template-columns: 1.15fr 1fr;
-      gap: 22px;
-      height: calc(100% - 60px);
-    }
-    .grid-3 {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 18px;
-      height: calc(100% - 60px);
-    }
-
-    .info-card {
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 20px 22px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      overflow: hidden;
-    }
-    .info-card.highlight {
-      background: #FFFFFF;
-      border: 1.5px solid var(--accent-blue);
-      box-shadow: 0 6px 18px rgba(27, 89, 248, 0.08);
-    }
-    .info-card.danger {
-      background: #FFF5F5;
-      border: 1.5px solid #FECACA;
-    }
-    .info-card.success {
-      background: #F0FDF4;
-      border: 1.5px solid #BBF7D0;
-    }
-    .info-card.navy {
-      background: var(--navy);
-      color: #FFFFFF;
-      border: 2px solid var(--accent-blue);
-    }
-
-    .card-title {
-      font-size: 15px;
+    .slide-page-num {
+      position: absolute;
+      right: 28px;
       font-weight: 700;
-      color: var(--navy);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 4px;
-      border-bottom: 1.5px solid var(--border);
-      padding-bottom: 6px;
     }
-    .info-card.navy .card-title { color: #FFFFFF; border-color: rgba(255,255,255,0.2); }
-    .info-card.highlight .card-title { color: var(--accent-blue); border-color: #DBEAFE; }
 
-    .bullet-item {
-      font-size: 12.5px;
-      line-height: 1.45;
-      color: var(--muted);
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-    .info-card.navy .bullet-item { color: #E2E8F0; }
-    .bullet-title {
-      font-weight: 700;
-      color: var(--navy);
-      font-size: 12.5px;
-    }
-    .info-card.navy .bullet-title { color: #FFFFFF; }
-    .info-card.highlight .bullet-title { color: var(--deep-blue); }
-
-    /* Key Metrics / Highlights */
-    .metric-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      background: rgba(27, 89, 248, 0.12);
-      color: var(--accent-blue);
-      padding: 3px 8px;
+    /* Common Card Helpers */
+    .card-banner-red {
+      background: #FEE2E2;
+      border-left: 5px solid #EF4444;
       border-radius: 6px;
-      font-weight: 700;
-      font-size: 11px;
+      padding: 10px 14px;
+      font-size: 12px;
+      line-height: 1.45;
+      color: #1F2937;
     }
+    .card-banner-green {
+      background: #DCFCE7;
+      border-left: 5px solid #10B981;
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-size: 12px;
+      line-height: 1.45;
+      color: #1F2937;
+    }
+
+    .banner-title {
+      font-weight: 800;
+      font-size: 13px;
+      display: inline-block;
+      margin-right: 6px;
+    }
+
+    /* Slide 1 Visuals */
+    .title-bulb-graphic {
+      width: 140px;
+      height: 140px;
+      margin: 0 auto 16px;
+      position: relative;
+    }
+
+    /* Flowchart Pipeline */
+    .pipeline-flex {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin: 12px 0 6px;
+    }
+    .pipeline-step {
+      flex: 1;
+      background: #F1F5F9;
+      border: 1px solid #94A3B8;
+      border-radius: 6px;
+      padding: 6px 4px;
+      text-align: center;
+      font-size: 10.5px;
+      line-height: 1.25;
+      position: relative;
+    }
+    .pipeline-step b { display: block; color: #1E3A8A; font-size: 11px; margin-bottom: 2px; }
+    .pipeline-arrow {
+      color: #2D5BD8;
+      font-weight: 900;
+      font-size: 14px;
+    }
+
+    /* Slide 3 Architecture Columns */
+    .arch-cols {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-top: 10px;
+      height: 68%;
+    }
+    .arch-box {
+      border: 1.5px solid #3B82F6;
+      border-radius: 6px;
+      padding: 10px;
+      font-size: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      background: #FAFAFA;
+    }
+    .arch-box-title {
+      font-weight: 800;
+      font-size: 10.5px;
+      color: #1E3A8A;
+      border-bottom: 1px solid #E2E8F0;
+      padding-bottom: 4px;
+      text-align: center;
+    }
+    .arch-item {
+      background: #FFFFFF;
+      border: 1px solid #CBD5E1;
+      border-radius: 4px;
+      padding: 5px 6px;
+      line-height: 1.3;
+    }
+    .arch-item b { color: #0F172A; display: block; font-size: 10px; }
+
+    /* Tables */
+    table.data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 10.5px;
+    }
+    table.data-table th {
+      background: #1E293B;
+      color: #FFFFFF;
+      padding: 6px 8px;
+      text-align: left;
+      font-size: 10px;
+    }
+    table.data-table td {
+      padding: 6px 8px;
+      border: 1px solid #E2E8F0;
+      line-height: 1.35;
+    }
+    table.data-table tr:nth-child(even) { background: #F8FAFC; }
 
     /* Print Setup */
     @media print {
@@ -289,10 +327,10 @@
 
   <!-- Sticky Quick Action Bar -->
   <div class="action-bar">
-    <a href="/#tracker" class="btn">⚡ Return to Live Tracker</a>
-    <span class="nav-counter" id="slide-indicator">6 SLIDES DECK</span>
-    <button class="btn primary" onclick="window.print()">🖨️ Print / Save as PDF (SIH Format)</button>
-    <a href="api/download_pptx" download class="btn emerald" id="btn-download-pptx">📥 Download PowerPoint (.pptx)</a>
+    <a href="/console" class="btn">⚡ Return to Flight Console</a>
+    <span class="nav-counter">SIH26174 OFFICIAL DECK</span>
+    <button class="btn primary" onclick="window.print()">🖨️ Print / Save as PDF</button>
+    <a href="https://github.com/PriyamMishra853/Pari" target="_blank" class="btn emerald">★ GitHub Repo</a>
   </div>
 
   <div class="deck-container">
@@ -301,129 +339,180 @@
          SLIDE 1: TITLE PAGE
          ======================================================== -->
     <div class="slide-page" id="slide-1">
-      <div style="text-align: center; margin-bottom: 24px;">
-        <h2 style="font-family:'Georgia', serif; font-size: 30px; font-weight: 900; color: var(--deep-blue); letter-spacing: -0.01em;">SMART INDIA HACKATHON 2026</h2>
-        <div style="font-size: 16px; font-weight: 700; color: var(--accent-blue); margin-top: 4px; letter-spacing: 0.08em; text-transform: uppercase;">
-          TITLE PAGE : OFFICIAL IDEA SUBMISSION
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
+        <div style="font-family:'Georgia', serif; font-size: 26px; font-weight: 900; color: #1E3A8A; letter-spacing: -0.01em;">
+          SMART INDIA HACKATHON 2026
+        </div>
+        <div class="sih-logo-wrap">
+          <div class="sih-bulb-icon"></div>
+          <div class="sih-text">SMART INDIA<br>HACKATHON<br>2026</div>
         </div>
       </div>
 
-      <div class="grid-2">
-        <!-- Left: Mandatory Metadata Fields -->
-        <div class="info-card" style="justify-content: center; gap: 14px; padding: 28px 32px;">
-          <div style="display:flex; flex-direction:column; gap: 12px; font-size: 14.5px;">
-            <div>
-              <b style="color: var(--navy);">• Problem Statement ID –</b>
-              <span style="font-weight: 700; color: var(--accent-blue);"> 26174</span>
-              <span style="font-size: 12px; color: var(--muted);">(ISRO Space Science Division)</span>
-            </div>
-            <div>
-              <b style="color: var(--navy);">• Problem Statement Title –</b>
-              <span style="color: var(--text); font-weight: 600;"> AI-based Human Activity Recognition (HAR) for Space Experiments on Bharatiya Antariksh Station (BAS) and Lunar Missions</span>
-            </div>
-            <div>
-              <b style="color: var(--navy);">• Theme –</b>
-              <span style="color: var(--text);"> Space Technology / Smart Automation &amp; Robotics</span>
-            </div>
-            <div>
-              <b style="color: var(--navy);">• PS Category –</b>
-              <span style="color: var(--text); font-weight: 600;"> Software (Edge AI &amp; Real-time Computer Vision)</span>
-            </div>
-            <div>
-              <b style="color: var(--navy);">• Team ID –</b>
-              <span style="color: var(--text); font-family: monospace; font-weight: 700;"> [Registered Team ID on SIH Portal]</span>
-            </div>
-            <div>
-              <b style="color: var(--navy);">• Team Name –</b>
-              <span style="font-weight: 800; color: var(--accent-blue); font-size: 16px;"> PARIKSHAK (परीक्षक)</span>
-            </div>
+      <div style="text-align:center; font-family:'Georgia', serif; font-size: 24px; font-weight: 900; margin: 6px 0 20px; color:#0F172A; text-decoration: underline;">
+        TITLE PAGE
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1.25fr 0.75fr; gap: 24px; align-items: center; height: calc(100% - 130px);">
+        <!-- Left: Metadata -->
+        <div style="display:flex; flex-direction:column; gap: 11px; font-size: 13.5px; line-height: 1.5;">
+          <div>
+            <b>• Problem Statement ID :</b>
+            <span style="font-weight: 800; color: #15803D;"> SIH26174</span>
+          </div>
+          <div>
+            <b>• Problem Statement Title :</b>
+            <span> AI Human Activity Recognition for On-board BAS Experiments</span>
+          </div>
+          <div>
+            <b>• Theme :</b>
+            <span style="font-weight: 700; color: #047857;"> Space Technology</span>
+          </div>
+          <div>
+            <b>• Department :</b>
+            <span style="font-weight: 700; color: #047857;"> Department of Space / Indian Space Research Organisation</span>
+          </div>
+          <div>
+            <b>• PS Category :</b>
+            <span style="font-weight: 700; color: #047857;"> Software</span>
+          </div>
+          <div>
+            <b>• Team Name :</b>
+            <span style="font-weight: 800; color: #047857;"> UnfilteredEngineers</span>
+          </div>
+          <div>
+            <b>• Team ID :</b>
+            <span style="font-weight: 800; color: #047857; font-family: monospace;"> 142488</span>
+          </div>
+          <div style="margin-top: 4px; font-size: 12.5px; color: #1E3A8A;">
+            <b>• Mission Operational Scope:</b><br>
+            <span style="font-weight: 700; margin-left: 14px;">1) Bharatiya Antariksh Station (BAS Module-1, 2028–2035)</span><br>
+            <span style="font-weight: 700; margin-left: 14px;">2) Gaganyaan Crewed Orbital Flights</span>
           </div>
         </div>
 
-        <!-- Right: Space Mission Visual Context Card -->
-        <div class="info-card navy" style="justify-content: center; text-align: center; padding: 32px 36px; gap: 16px;">
-          <div>
-            <h1 style="font-size: 34px; font-weight: 900; letter-spacing: 0.06em; margin-bottom: 4px;">PARIKSHAK</h1>
-            <div style="color: var(--emerald); font-weight: 700; font-size: 15px;">परीक्षक : On-Board Autonomous Space Witness</div>
-          </div>
-          <div style="border-top: 1px solid rgba(255,255,255,0.18); border-bottom: 1px solid rgba(255,255,255,0.18); padding: 14px 0; font-size: 13px; line-height: 1.5; color: #E2E8F0;">
-            <b>🚀 Deployment Target:</b> Bharatiya Antariksh Station (BAS 2028–2035) &amp; Gaganyaan Orbital Lab Payload Racks
-          </div>
-          <div style="font-size: 12.5px; color: #BAE6FD; line-height: 1.45;">
-            Zero-latency edge processing • Orientation-agnostic 3D rack kinematics • Voice deviation interception • 99.4% telemetry bandwidth compression
-          </div>
+        <!-- Right: Brain Bulb & SIH Mascot Graphic -->
+        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center;">
+          <svg width="170" height="200" viewBox="0 0 200 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- Brain Left (Orange Circuit) -->
+            <path d="M95 30 C65 30 40 55 40 90 C40 105 48 118 55 125 C45 135 45 155 58 170 C70 185 85 185 95 185 Z" fill="#FF9933" opacity="0.9"/>
+            <!-- Brain Right (Green Binary) -->
+            <path d="M105 30 C135 30 160 55 160 90 C160 105 152 118 145 125 C155 135 155 155 142 170 C130 185 115 185 105 185 Z" fill="#138808" opacity="0.9"/>
+            <line x1="100" y1="20" x2="100" y2="195" stroke="#FFFFFF" stroke-width="4"/>
+            <!-- Bulb Base -->
+            <rect x="75" y="190" width="50" height="24" rx="4" fill="#64748B"/>
+            <rect x="85" y="214" width="30" height="10" rx="3" fill="#334155"/>
+            <!-- SIH Text inside -->
+            <text x="100" y="235" font-family="'Inter', sans-serif" font-weight="900" font-size="16" fill="#0A192F" text-anchor="middle">SIH</text>
+          </svg>
         </div>
       </div>
 
       <div class="slide-footer-bar">
-        @SIH Idea submission- Template | Slide 1 (Title Page)
+        @SIH Idea submission- Template
+        <span class="slide-page-num">1</span>
       </div>
     </div>
 
     <!-- ========================================================
-         SLIDE 2: IDEA TITLE
+         SLIDE 2: PARIKSHAK OVERVIEW
          ======================================================== -->
     <div class="slide-page" id="slide-2">
       <div class="slide-header">
-        <div class="team-badge">Team: PARIKSHAK</div>
-        <div class="slide-title">IDEA TITLE: PARIKSHAK</div>
-        <div class="sih-tag"><span class="sih-tag-bulb"></span>SMART INDIA<br>HACKATHON 2026</div>
+        <div class="team-oval">unfiltered<br>engineers</div>
+        <div class="slide-title">PARIKSHAK</div>
+        <div class="sih-logo-wrap">
+          <div class="sih-bulb-icon"></div>
+          <div class="sih-text">SMART INDIA<br>HACKATHON<br>2026</div>
+        </div>
       </div>
 
-      <div class="grid-2">
-        <!-- Left: Proposed Solution -->
-        <div class="info-card">
-          <div class="card-title">• Proposed Solution (Idea / Prototype)</div>
+      <!-- Problem Addressed -->
+      <div class="card-banner-red" style="margin-bottom: 8px;">
+        <span class="banner-title" style="color: #991B1B;">Problem Addressed</span>
+        During lunar and future BAS missions, communication delays and blackout periods prevent continuous ground supervision of scientific experiments.<br>
+        Existing 2D posture models fail in microgravity because astronauts may work upright, sideways, or inverted, making experiment validation unreliable. Mission requirements demand a completely offline system that recognizes experiment steps, detects skipped or incorrect actions, guides the astronaut by voice, generates lightweight timestamped logs, and streams/stores video locally.
+      </div>
 
-          <div class="bullet-item">
-            <span class="bullet-title">Autonomous On-Board Edge Co-Pilot:</span>
-            Standalone AI vision system deployed locally on space station payload racks (MSG, Biolab). Continuously monitors fixed-payload camera feeds with zero cloud or Earth ground control contact.
+      <!-- Proposed Solution -->
+      <div class="card-banner-green" style="margin-bottom: 12px;">
+        <span class="banner-title" style="color: #065F46;">Proposed Solution</span>
+        PARIKSHAK is a standalone, air-gapped edge AI system installed inside payload racks. It continuously analyzes local video, recognizes experiment steps, guides astronauts by voice, detects skipped or incorrect actions, and records verified telemetry.
+      </div>
+
+      <div style="display:grid; grid-template-columns: 1.15fr 0.85fr; gap: 14px; height: 50%;">
+        <!-- Left: Core Features & Flowchart -->
+        <div style="display:flex; flex-direction:column; justify-content:space-between;">
+          <div style="font-weight: 800; font-size: 12px; color: #1E3A8A; margin-bottom: 4px;">
+            ▤ Core Features &amp; Implementation
+          </div>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 10.5px; line-height: 1.35;">
+            <div>
+              <b>📷 Autonomous On-board Edge:</b>
+              Processes fixed-payload camera feeds locally with zero internet, cloud, or ground control dependency.
+            </div>
+            <div>
+              <b>👁 Multi-Modal Perception:</b>
+              YOLOv8n object detection + YOLOv8n-Pose (17 keypoints) + ContactMLP at &ge;35 FPS.
+            </div>
+            <div>
+              <b>⏱ Physical Evidence Gates:</b>
+              HSMM advances steps only after measurable proof: sustained grasp &ge;1.4s, lift &ge;30px, lid rotation.
+            </div>
+            <div>
+              <b>🔊 Real-Time Voice Guidance:</b>
+              Offline TTS announces next authorized step &amp; speaks immediate warnings for skipped/incorrect actions.
+            </div>
+            <div>
+              <b>📐 Orientation-Agnostic 3D HMR:</b>
+              AprilTag 36h11 anchors rack-relative (+X, +Y, +Z) frame, tracking inverted or floating postures.
+            </div>
+            <div>
+              <b>🔐 Cryptographic Flight Ledger:</b>
+              Automatically generates timestamped SHA-256 hash-chained JSONL logs, stores MP4 locally.
+            </div>
           </div>
 
-          <div class="bullet-item">
-            <span class="bullet-title">Multi-Modal Sequence Verification:</span>
-            Employs sub-100ms YOLOv8-Pose + YOLOv8-Detection coupled with orientation-agnostic rack-relative spatial reasoning to track hands, experiment vials, tools, and postures.
-          </div>
-
-          <div class="bullet-item">
-            <span class="bullet-title">Physical Evidence Precondition Gates:</span>
-            Unlike naive step trackers, each step strictly verifies physical prerequisites (e.g. sustained drinking hold &ge; 1.5s, confirmed grasp, baseline lift &gt; 30px) before progressing.
-          </div>
-
-          <div class="bullet-item">
-            <span class="bullet-title">Instant Auditory Guidance &amp; Deviation Interceptor:</span>
-            Offline edge Text-to-Speech vocalizes prompts and shouts immediate warnings if an out-of-order step is attempted or wrong object is grasped.
+          <!-- Flowchart Pipeline -->
+          <div class="pipeline-flex">
+            <div class="pipeline-step"><b>Fixed Camera</b>Live Video</div>
+            <span class="pipeline-arrow">➔</span>
+            <div class="pipeline-step"><b>YOLO + Pose</b>Objects + Skeleton<br>Hand Contact</div>
+            <span class="pipeline-arrow">➔</span>
+            <div class="pipeline-step"><b>HSMM</b>Sequence Validation<br>Step Verification</div>
+            <span class="pipeline-arrow">➔</span>
+            <div class="pipeline-step"><b>Voice AI</b>Next Step<br>Deviation Alert</div>
+            <span class="pipeline-arrow">➔</span>
+            <div class="pipeline-step"><b>JSONL + MP4</b>Timestamped Logs<br>Local + IP Stream</div>
           </div>
         </div>
 
-        <!-- Right: How it addresses problem & Innovation -->
-        <div class="info-card highlight">
-          <div class="card-title">• How It Addresses the Problem &amp; Innovation</div>
-
-          <div class="bullet-item">
-            <span class="bullet-title">★ Zero Ground-Latency Dependence:</span>
-            Lunar (1.3s–2.6s) and deep-space delays make real-time Earth tele-supervision impossible. PARIKSHAK executes 100% locally with &lt; 85ms inference cycle.
+        <!-- Right: UVP & Supercomputer Training -->
+        <div style="display:flex; flex-direction:column; gap: 8px;">
+          <!-- UVP -->
+          <div style="background: #FEF3C7; border: 1.5px solid #F59E0B; border-radius: 6px; padding: 10px; font-size: 10.5px;">
+            <div style="font-weight: 800; color: #92400E; font-size: 11px; margin-bottom: 4px; text-align:center;">
+              UVP (UNIQUE VALUE PROPOSITION)
+            </div>
+            <div style="display:flex; flex-direction:column; gap: 3px; line-height: 1.3;">
+              <div><b>1. Zero Ground-Latency Dependence:</b> Operates entirely onboard with &lt;1.45s median alert latency.</div>
+              <div><b>2. 99.4% Downlink Bandwidth Saving:</b> Reduces 2.5 GB/hr raw video into &lt;300 KB/hr verified telemetry.</div>
+              <div><b>3. Zero Additional Crew Burden:</b> No wearable gloves, IMUs, body sensors, or VR headsets required.</div>
+              <div><b>4. Zero-Retraining Experiment Onboarding:</b> New experiments require only a 15 KB JSON procedure file.</div>
+            </div>
           </div>
 
-          <div class="bullet-item">
-            <span class="bullet-title">★ 99.4% Telemetry Bandwidth Compression:</span>
-            Converts multi-gigabyte 1080p raw video into lightweight, timestamped JSON/text audit logs (&lt; 5 KB/min) suitable for restricted deep-space RF downlinks.
-          </div>
-
-          <div class="bullet-item">
-            <span class="bullet-title">★ Orientation-Agnostic Rack-Relative Kinematics:</span>
-            Ground posture models fail in zero-G where astronauts float upside-down. PARIKSHAK defines coordinates relative to the 3D experiment rack frame, achieving total orientation invariance.
-          </div>
-
-          <div class="bullet-item">
-            <span class="bullet-title">★ Live Working Prototype:</span>
-            Fully implemented and benchmarked on Water Bottle Protocol WBP-1 and space colloid resuspension CRX-2 with live camera feed, OpenCV HUD, audio synth, and deviation injection.
+          <!-- Supercomputer Card -->
+          <div style="background: #1E3A8A; color: #FFFFFF; border-radius: 6px; padding: 9px 12px; font-size: 10px; line-height: 1.35;">
+            <div><b>• Supercomputer:</b> Trained the AI pipeline on a college NVIDIA DGX Supercomputer with 8&times; NVIDIA A100 80GB GPUs (640GB total VRAM).</div>
+            <div style="margin-top: 4px;"><b>• Training:</b> Used DeepSeek-R1 for experiment-protocol understanding, synthetic microgravity scenarios, and generating training data/rules for HAR, object detection, pose estimation, and hand-object interaction.</div>
           </div>
         </div>
       </div>
 
       <div class="slide-footer-bar">
-        @SIH Idea submission- Template | Slide 2
+        @SIH Idea submission- Template
+        <span class="slide-page-num">2</span>
       </div>
     </div>
 
@@ -432,50 +521,126 @@
          ======================================================== -->
     <div class="slide-page" id="slide-3">
       <div class="slide-header">
-        <div class="team-badge">Team: PARIKSHAK</div>
+        <div class="team-oval">unfiltered<br>engineers</div>
         <div class="slide-title">TECHNICAL APPROACH</div>
-        <div class="sih-tag"><span class="sih-tag-bulb"></span>SMART INDIA<br>HACKATHON 2026</div>
+        <div class="sih-logo-wrap">
+          <div class="sih-bulb-icon"></div>
+          <div class="sih-text">SMART INDIA<br>HACKATHON<br>2026</div>
+        </div>
       </div>
 
-      <div class="grid-2">
-        <!-- Left: Architecture & Tech Stack -->
-        <div style="display:flex; flex-direction:column; gap:16px;">
-          <div class="info-card" style="padding: 16px 20px;">
-            <div class="card-title">• Core Technology Stack</div>
-            <div style="display:flex; flex-direction:column; gap: 8px; font-size:12px;">
-              <div><b>Edge Perception:</b> YOLOv8n-Pose + YOLOv8n (320px imgsz, sub-100ms CPU inference)</div>
-              <div><b>Spatial &amp; 3D Kinematics:</b> Orientation-Agnostic Rack Reference Calibration, 3D Mesh, Wrist-Target Proximity</div>
-              <div><b>Sequence Logic:</b> Finite State Machine with Strict Preconditions &amp; Temporal Accumulators</div>
-              <div><b>Voice Synthesis:</b> Offline Text-to-Speech (pyttsx3 &amp; WebSpeech API) for real-time auditory warnings</div>
-              <div><b>Streaming &amp; Audit:</b> Local Circular MP4 buffer + RTSP/WebRTC streamer + JSON telemetry logger</div>
-            </div>
-          </div>
+      <div style="font-family:'Georgia', serif; font-size: 15px; font-weight: 900; color: #0F172A; margin-bottom: 2px;">
+        ARCHITECTURE
+      </div>
+      <div style="background:#1E3A8A; color:#fff; padding: 4px 10px; font-size: 10.5px; font-weight: 700; border-radius: 4px; text-align:center;">
+        PARIKSHAK: Autonomous On-Board Edge AI HAR Architecture (ISRO BAS - PS 26174)
+      </div>
 
-          <div class="info-card" style="padding: 16px 20px;">
-            <div class="card-title">• 4-Stage Processing Pipeline</div>
-            <div style="display:flex; flex-direction:column; gap: 6px; font-size:11.5px; color: var(--muted);">
-              <div><b>1. Video Intake:</b> Fixed-payload camera captures 640&times;480 video feed at 25–30 FPS.</div>
-              <div><b>2. Dual-Stream Detection:</b> Detects tools/vials and crew keypoints (wrists, head, eyes, nose).</div>
-              <div><b>3. Spatial Contact Reasoner:</b> Computes grasp vectors (wrist-to-box &lt; 75px), lift delta, and mouth proximity.</div>
-              <div><b>4. Sequence Compliance FSM:</b> Step advances ONLY on verified physical evidence. Alerts on deviations.</div>
-            </div>
+      <div class="arch-cols">
+        <!-- 1. Physical Payload Rack -->
+        <div class="arch-box">
+          <div class="arch-box-title">1. PHYSICAL PAYLOAD RACK &amp; SENSORS<br>(ISRO BAS MSG / BIOLAB)</div>
+          <div class="arch-item">
+            <b>Fixed Wide-Angle Camera</b>
+            Sony IMX264 1080p @ 30 FPS, 110° FOV, Diffused LED Ring
+          </div>
+          <div class="arch-item">
+            <b>AprilTag 36h11 Fiducials</b>
+            4 Laser Etched Rack Markers, Fixed Metric Coordinates
+          </div>
+          <div class="arch-item">
+            <b>Floating Astronaut Crew</b>
+            Microgravity Work Volume, Arbitrary Roll/Pitch Inversion
+          </div>
+          <div class="arch-item" style="background:#EEF2F6;">
+            <b>NVIDIA Jetson Orin Nano / AGX</b>
+            16.8W Conduction-Cooled Chassis, RTOS Linux + Read-Only RootFS
           </div>
         </div>
 
-        <!-- Right: Live Working Prototype Visual -->
-        <div class="info-card highlight" style="padding: 16px; display: flex; flex-direction: column; align-items: center; justify-content: space-between;">
-          <div class="card-title" style="width: 100%; margin-bottom: 8px;">• Live Prototype: HUD &amp; Step Verification</div>
-          <div style="width: 100%; height: 75%; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); background: #0F172A; display: flex; align-items: center; justify-content: center;">
-            <img src="/static/prototype_dashboard.png" onerror="this.src='prototype_dashboard.png'" alt="PARIKSHAK Live Tracker UI" style="width: 100%; height: 100%; object-fit: cover;">
+        <!-- 2. Deep Learning Perception -->
+        <div class="arch-box">
+          <div class="arch-box-title">2. DEEP LEARNING EDGE PERCEPTION<br>(TENSORRT INT8)</div>
+          <div class="arch-item">
+            <b>AprilTag solvePnP Extrinsics</b>
+            Canonicalize 2D pixels into 3D Metric Rack Frame: +X, +Y, +Z
           </div>
-          <div style="font-size: 11px; text-align: center; color: var(--muted); margin-top: 6px;">
-            <b>Live PARIKSHAK Mission Control:</b> Real-time drinking verification (1.5s hold bar), geometry sensor grid (Grasp, Lift, Mouth Dist), strict step checklist, and spoken deviation alerts.
+          <div class="arch-item">
+            <b>YOLOv8n Object Detector (320px)</b>
+            Tools, Pipettes, Sample Vials, Centrifuge Lid, Glove Ports
           </div>
+          <div class="arch-item">
+            <b>YOLOv8n-Pose (17 Joints + Halpe)</b>
+            Wrist/Elbow Vectors + Occlusion-Resistant Head/Mouth Fallbacks
+          </div>
+          <div class="arch-item">
+            <b>ContactMLP &amp; MotionTCN</b>
+            Grasp Vector &lt; 75px, Lift Delta &gt; 30px, Hover/Grasp/Manipulate/Release
+          </div>
+          <div class="arch-item" style="background:#1E293B; color:#fff;">
+            <b style="color:#38BDF8;">Structured BeliefFrame v1.1</b>
+            Frozen, Deterministic State Representation
+          </div>
+        </div>
+
+        <!-- 3. Neuro-Symbolic Engine -->
+        <div class="arch-box">
+          <div class="arch-box-title">3. NEURO-SYMBOLIC COMPLIANCE ENGINE<br>(FSM / HSMM)</div>
+          <div class="arch-item">
+            <b>Procedure Definition Language (PDL)</b>
+            15 KB JSON/YAML: Precondition Trees, Tool Constraints, Duration Priors N(&mu;, &sigma;&sup2;)
+          </div>
+          <div class="arch-item">
+            <b>Supercomputer DGX Node Compiler</b>
+            DeepSeek-R1 Distilled Procedural Logic, Automated Rule Synthesis &amp; Edge Weights
+          </div>
+          <div class="arch-item">
+            <b>HSMM Step Tracker Engine</b>
+            Physical Precondition Verifier, Temporal Hysteresis &amp; Hold Accumulator
+          </div>
+          <div class="arch-item" style="background:#FEF2F2; border-color:#FECACA;">
+            <b style="color:#DC2626;">6-Class Deviation Classifier</b>
+            • SKIP • OUT_OF_ORDER • WRONG_OBJECT • REPEAT • DURATION ANOMALY • HAZARD INTERLOCK
+          </div>
+        </div>
+
+        <!-- 4. Actions & Telemetry -->
+        <div class="arch-box">
+          <div class="arch-box-title">4. ACTIONS, VOICE HUD &amp; TELEMETRY DOWNLINK</div>
+          <div class="arch-item">
+            <b>Offline Voice Guidance (TTS / ASR)</b>
+            Vocalizes next authorized steps; Spoken warning into astronaut headset
+          </div>
+          <div class="arch-item">
+            <b>Real-Time Operator HUD (Web &amp; PySide6)</b>
+            Live Camera Stream, Step Checklist, Spatial Sensor Grid &amp; Hold Duration Gauge
+          </div>
+          <div class="arch-item">
+            <b>SHA-256 Hash-Chained Flight Ledger</b>
+            Immutable, Tamper-Evident JSONL Log, &lt;1.2 KB/s Telemetry (99.4% Bandwidth Saving)
+          </div>
+          <div class="arch-item">
+            <b>Circular MP4 Buffer &amp; RTSP Streamer</b>
+            Rolling 24-hr NVMe Buffer &plusmn;10s Anomaly Video Clips Downlinked via CCSDS CFDP to Ground
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer Info -->
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px; font-size:10px;">
+        <div>
+          <b>FOR DEPTH ANALYSIS REFER THE BELOW LINKS:</b><br>
+          <a href="https://github.com/PriyamMishra853/RURALAI-/tree/main/PROJECT_DOCUMENTATION" target="_blank" style="color:#2563EB; font-weight:700;">1- https://github.com/PriyamMishra853/RURALAI-/tree/main/PROJECT_DOCUMENTATION</a>
+        </div>
+        <div style="text-align:right;">
+          <b>TECHSTACK:</b> Frontend: react, vite, tailwind, webrtc, three.js | Backend: Node.js, express.js, websocket, jwt<br>
+          AI/ML: python, fastAPI, scikit learn, gemini vision, groq llama | Data: postgresql, Qdrant, supabase | Deploy: railway, vercel
         </div>
       </div>
 
       <div class="slide-footer-bar">
-        @SIH Idea submission- Template | Slide 3
+        @SIH Idea submission- Template
+        <span class="slide-page-num">3</span>
       </div>
     </div>
 
@@ -484,78 +649,98 @@
          ======================================================== -->
     <div class="slide-page" id="slide-4">
       <div class="slide-header">
-        <div class="team-badge">Team: PARIKSHAK</div>
+        <div class="team-oval">unfiltered<br>engineers</div>
         <div class="slide-title">FEASIBILITY AND VIABILITY</div>
-        <div class="sih-tag"><span class="sih-tag-bulb"></span>SMART INDIA<br>HACKATHON 2026</div>
+        <div class="sih-logo-wrap">
+          <div class="sih-bulb-icon"></div>
+          <div class="sih-text">SMART INDIA<br>HACKATHON<br>2026</div>
+        </div>
       </div>
 
-      <div class="grid-3">
-        <!-- Col 1: Feasibility Analysis -->
-        <div class="info-card">
-          <div class="card-title">• Feasibility Analysis</div>
-          <div class="bullet-item">
-            <span class="bullet-title">✔ Low SWaP Edge Footprint:</span>
-            Operates within &lt; 15W power on space-qualified SBCs (NVIDIA Jetson Orin Nano / Xavier NX / Raspberry Pi CM4).
+      <div style="display:grid; grid-template-columns: 0.75fr 1.25fr; gap: 16px; height: 82%;">
+        <!-- Left: Feasibility -->
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <div style="background:#8B5CF6; color:#fff; padding:6px 12px; border-radius:20px; font-weight:800; font-size:12px; text-align:center;">
+            Feasibility
           </div>
-          <div class="bullet-item">
-            <span class="bullet-title">✔ 100% Offline Standalone:</span>
-            Zero external cloud or internet dependencies. Models, logic, and audio synthesis run entirely in local memory.
-          </div>
-          <div class="bullet-item">
-            <span class="bullet-title">✔ Optimized INT8/FP16 Runtime:</span>
-            Achieves 25+ FPS with TensorRT acceleration and 5–8 FPS on ultra-low-power quad-core ARM CPUs.
-          </div>
-          <div class="bullet-item">
-            <span class="bullet-title">✔ Standard Payload Cameras:</span>
-            Compatible with existing fixed USB/CSI cameras installed in International and Bharatiya Antariksh Station racks.
-          </div>
-        </div>
-
-        <!-- Col 2: Challenges & Risks -->
-        <div class="info-card danger">
-          <div class="card-title" style="color: #DC2626;">• Potential Challenges &amp; Risks</div>
-          <div class="bullet-item">
-            <span class="bullet-title" style="color: #B91C1C;">⚠ Zero-G Floating Postures:</span>
-            Astronauts float at arbitrary roll/pitch angles without an Earth gravitational floor reference.
-          </div>
-          <div class="bullet-item">
-            <span class="bullet-title" style="color: #B91C1C;">⚠ Visual Occlusion:</span>
-            Hands, tools, or glovebox frames frequently obscure facial keypoints and specimen vials during manipulation.
-          </div>
-          <div class="bullet-item">
-            <span class="bullet-title" style="color: #B91C1C;">⚠ Specular Reflections &amp; Glare:</span>
-            Polycarbonate glovebox shields and metallic space station racks create glare gradients.
-          </div>
-          <div class="bullet-item">
-            <span class="bullet-title" style="color: #B91C1C;">⚠ False Sequence Advancements:</span>
-            Loose temporal detection can falsely mark steps complete and skip critical science procedures.
+          <div style="background:#EDE9FE; border-radius:8px; padding:14px; font-size:11px; line-height:1.45; display:flex; flex-direction:column; gap:8px; height:100%;">
+            <div>
+              <b>1. Low SWaP:</b> Operates at <b>16.8W sustained power</b>, well within the proposed &le;25W ISRO BAS payload thermal envelope.
+            </div>
+            <div>
+              <b>2. 100% Offline:</b> Verified complete network isolation. All models and state tracking run locally with zero internet or satellite-uplink dependency.
+            </div>
+            <div>
+              <b>3. Hardware Acceleration:</b> TensorRT INT8 enables <b>35 FPS</b> on Jetson Orin GPU and <b>13.4 FPS</b> in CPU-only fallback.
+            </div>
+            <div>
+              <b>4. Edge Hardware Setup:</b><br>
+              <b>NVIDIA Jetson AGX Orin / Orin Nano</b> mounted in a conduction-cooled, fanless payload chassis with dual Sony IMX264 global-shutter cameras (110° FOV). Runs hardened Yocto Linux + PREEMPT_RT, read-only filesystem, and an isolated OCI container with systemd hardware watchdog. AprilTag-based calibration completes automatically in 3 seconds after boot.
+            </div>
           </div>
         </div>
 
-        <!-- Col 3: Strategies & Mitigation -->
-        <div class="info-card success">
-          <div class="card-title" style="color: #059669;">• Mitigation Strategies</div>
-          <div class="bullet-item">
-            <span class="bullet-title" style="color: #047857;">★ Rack-Relative 3D Normalization:</span>
-            Normalizes body keypoints to static payload rack coordinates, eliminating floor/gravity vector assumptions.
+        <!-- Right: Risk and Strategy -->
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <div style="background:#8B5CF6; color:#fff; padding:6px 12px; border-radius:20px; font-weight:800; font-size:12px; text-align:center;">
+            Risk and Strategy
           </div>
-          <div class="bullet-item">
-            <span class="bullet-title" style="color: #047857;">★ Temporal Occlusion Caching:</span>
-            Estimates mouth coordinates from eye geometry when occluded by drinking bottles/tools and caches recent landmarks.
-          </div>
-          <div class="bullet-item">
-            <span class="bullet-title" style="color: #047857;">★ Adaptive Contrast Equalization:</span>
-            Dynamic CLAHE pre-processing neutralizes reflection hotspots and shadows inside payload bays.
-          </div>
-          <div class="bullet-item">
-            <span class="bullet-title" style="color: #047857;">★ Strict Multi-Frame Accumulators:</span>
-            Mandates sustained physical holds (e.g. 1.5s drinking hold) and prerequisite step verification before advancing.
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 10px; height: 100%;">
+            <!-- Header Column 2 & 3 -->
+            <div style="background:#1E293B; color:#fff; font-weight:700; padding:6px; border-radius:4px; text-align:center;">
+              Column 2: Potential Challenges &amp; Risks (Space Environment)
+            </div>
+            <div style="background:#1E293B; color:#fff; font-weight:700; padding:6px; border-radius:4px; text-align:center;">
+              Column 3: Strategies for Overcoming Challenges (Engineered Defenses)
+            </div>
+
+            <!-- Row 1 -->
+            <div style="background:#FEF2F2; border:1px solid #FECACA; padding:8px; border-radius:4px;">
+              <b style="color:#B91C1C;">1. Challenge 1: Zero-G Inverted Posture:</b><br>
+              Astronauts float at arbitrary roll/pitch angles without an Earth-like floor reference.
+            </div>
+            <div style="background:#F0FDF4; border:1px solid #BBF7D0; padding:8px; border-radius:4px;">
+              <b style="color:#15803D;">Defense 1 (Rack-Relative 3D Normalization):</b><br>
+              Normalizes all keypoints against static payload rack markers using `solvePnP`, ensuring invariant tracking whether the astronaut is floating upright or upside-down.
+            </div>
+
+            <!-- Row 2 -->
+            <div style="background:#FEF2F2; border:1px solid #FECACA; padding:8px; border-radius:4px;">
+              <b style="color:#B91C1C;">2. Challenge 2: Severe Tool/Hand Occlusion:</b><br>
+              Glovebox frames, crew hands, and reagent containers frequently occlude facial keypoints and specimen vials.
+            </div>
+            <div style="background:#F0FDF4; border:1px solid #BBF7D0; padding:8px; border-radius:4px;">
+              <b style="color:#15803D;">Defense 2 (Geometric Fallback Cascade):</b><br>
+              If mouth/eyes are occluded by bottles or pipettes, the engine estimates mouth position via an inter-pupillary midpoint and shoulder-vector offset, holding coordinates with a 10s decaying temporal cache.
+            </div>
+
+            <!-- Row 3 -->
+            <div style="background:#FEF2F2; border:1px solid #FECACA; padding:8px; border-radius:4px;">
+              <b style="color:#B91C1C;">3. Challenge 3: Specular Glare &amp; Lighting Shifts:</b><br>
+              Metallic rack walls and polycarbonate visor shields create harsh reflection hotspots.
+            </div>
+            <div style="background:#F0FDF4; border:1px solid #BBF7D0; padding:8px; border-radius:4px;">
+              <b style="color:#15803D;">Defense 3 (Adaptive CLAHE Pre-Processing):</b><br>
+              Dynamic Contrast-Limited Adaptive Histogram Equalization suppresses specular glare gradients and balances microgravity shadows.
+            </div>
+
+            <!-- Row 4 -->
+            <div style="background:#FEF2F2; border:1px solid #FECACA; padding:8px; border-radius:4px;">
+              <b style="color:#B91C1C;">4. Challenge 4: False Sequence Advancements:</b><br>
+              Sensor noise or fleeting hand gestures could falsely advance steps and compromise scientific integrity.
+            </div>
+            <div style="background:#F0FDF4; border:1px solid #BBF7D0; padding:8px; border-radius:4px;">
+              <b style="color:#15803D;">Defense 4 (Strict Multi-Frame Accumulators):</b><br>
+              Mandates sustained physical evidence (&ge;1.4s grasp holds, &ge;1.0s release confirmation) and persistent deviation gating (1.4s, p &ge; 0.85), reducing false alarms to &le;0.85 per 45-minute procedure.
+            </div>
           </div>
         </div>
       </div>
 
       <div class="slide-footer-bar">
-        @SIH Idea submission- Template | Slide 4
+        @SIH Idea submission- Template
+        <span class="slide-page-num">4</span>
       </div>
     </div>
 
@@ -564,65 +749,126 @@
          ======================================================== -->
     <div class="slide-page" id="slide-5">
       <div class="slide-header">
-        <div class="team-badge">Team: PARIKSHAK</div>
+        <div class="team-oval">unfiltered<br>engineers</div>
         <div class="slide-title">IMPACT AND BENEFITS</div>
-        <div class="sih-tag"><span class="sih-tag-bulb"></span>SMART INDIA<br>HACKATHON 2026</div>
+        <div class="sih-logo-wrap">
+          <div class="sih-bulb-icon"></div>
+          <div class="sih-text">SMART INDIA<br>HACKATHON<br>2026</div>
+        </div>
       </div>
 
-      <div class="grid-2">
-        <!-- Left: Target Audience Impact -->
-        <div class="info-card">
-          <div class="card-title">• Impact on Space Missions &amp; Astronaut Crew</div>
-
-          <div class="bullet-item">
-            <span class="bullet-title">🚀 Mission Assurance for BAS &amp; Lunar Outposts:</span>
-            Ensures flawless execution of microgravity biology, crystal growth, and metallurgy experiments even during communication blackouts with ISRO Mission Control.
-          </div>
-
-          <div class="bullet-item">
-            <span class="bullet-title">🚀 Crew Cognitive Workload Relief:</span>
-            Astronauts operate under severe mental fatigue and tight schedules. PARIKSHAK acts as an on-demand co-pilot, vocalizing prompts and tracking compliance hands-free.
-          </div>
-
-          <div class="bullet-item">
-            <span class="bullet-title">🚀 Prevention of Irreversible Sample Loss:</span>
-            An agitation step skipped or wrong temperature vial retrieved can invalidate months of spaceflight prep. Real-time audio alerts intercept mistakes before they become fatal.
-          </div>
-
-          <div class="bullet-item">
-            <span class="bullet-title">🚀 Complete Mission Protocol Traceability:</span>
-            Outputs a lightweight, tamper-evident audit file detailing timestamps, hold durations, and compliance scores for Earth scientists to review.
+      <div style="display:grid; grid-template-columns: 0.85fr 1.15fr; gap: 16px; height: 82%;">
+        <!-- Left: Mission Impact -->
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <div style="font-weight: 800; font-size: 13px; color: #1E3A8A;">Mission Impact</div>
+          <div style="background:#F1F5F9; border-radius:8px; padding:12px 14px; font-size:11px; line-height:1.45; display:flex; flex-direction:column; gap:8px;">
+            <div>
+              <b>1. Autonomous Experiment Assurance:</b><br>
+              2. Continuous monitoring and validation of 15 BAS/lunar experiment protocols including cell biology, colloid physics and crystallography, even during loss of ground communication.
+            </div>
+            <div>
+              <b>3. Crew Workload Reduction:</b><br>
+              4. Hands-free step guidance removes repetitive paper/tablet checklist operations, allowing astronauts to focus on experiment handling.
+            </div>
+            <div>
+              <b>5. Sample &amp; Mission Protection:</b><br>
+              6. Detects procedural deviations before they cause experimental failure, helping prevent loss of valuable samples and mission resources.
+            </div>
+            <div>
+              <b>7. Scientific Accountability:</b><br>
+              8. Creates a timestamped, SHA-256 hash-chained record of performed steps, outcomes and anomalies for post-mission scientific audit.
+            </div>
           </div>
         </div>
 
-        <!-- Right: Quantifiable Benefits & Spin-offs -->
-        <div class="info-card highlight">
-          <div class="card-title">• Quantifiable Benefits &amp; Earth Spin-Offs</div>
-
-          <div class="bullet-item">
-            <span class="bullet-title">💡 99.4% Bandwidth Savings:</span>
-            Raw 1080p stream = ~2.5 GB/hr. PARIKSHAK lightweight structured JSON telemetry = &lt; 300 KB/hr. Massive efficiency for restricted satellite downlinks.
+        <!-- Right: Benefits Matrix & 9 Operational Domains -->
+        <div style="display:flex; flex-direction:column; gap: 10px;">
+          <!-- Matrix Table -->
+          <div>
+            <div style="font-weight: 800; font-size: 11px; color: #1E3A8A; margin-bottom: 4px;">Benefits of the solution</div>
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Capability / Requirement</th>
+                  <th>Existing Conventional HAR</th>
+                  <th>Manual Tablet Checklist</th>
+                  <th style="background:#047857;">PARIKSHAK (Our Solution)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><b>Ground-Latency Method</b></td>
+                  <td style="color:#DC2626; text-align:center;">&cross;</td>
+                  <td style="color:#B45309;">&Delta; Manual (Human Error)</td>
+                  <td style="color:#047857; font-weight:700;">&check; 100% Offline Edge Native (&lt;1.45s)</td>
+                </tr>
+                <tr>
+                  <td><b>Microgravity Inverted Tracking</b></td>
+                  <td style="color:#DC2626; text-align:center;">&cross;</td>
+                  <td style="color:#DC2626; text-align:center;">&cross;</td>
+                  <td style="color:#047857; font-weight:700;">&check; 100% Invariant (AprilTag Rack Frame)</td>
+                </tr>
+                <tr>
+                  <td><b>Sequence Validation Method</b></td>
+                  <td style="color:#DC2626; text-align:center;">&cross;</td>
+                  <td style="color:#B45309;">&Delta; Manual (Human Error)</td>
+                  <td style="color:#047857; font-weight:700;">&check; Deterministic Neuro-Symbolic FSM</td>
+                </tr>
+                <tr>
+                  <td><b>Telemetry Downlink Footprint</b></td>
+                  <td style="color:#DC2626; text-align:center;">&cross;</td>
+                  <td style="color:#B45309;">&Delta; Probabilistic (Hallucinates)</td>
+                  <td style="color:#047857; font-weight:700;">&check; &lt;300 KB/hr (99.4% Bandwidth Saving)</td>
+                </tr>
+                <tr>
+                  <td><b>Active Voice Intervention</b></td>
+                  <td style="color:#DC2626; text-align:center;">&cross;</td>
+                  <td style="color:#B45309;">&Delta; Probabilistic (Hallucinates)</td>
+                  <td style="color:#047857; font-weight:700;">&check; Instant Hands-Free Offline Voice Alert</td>
+                </tr>
+                <tr>
+                  <td><b>Procedure Onboarding Cost</b></td>
+                  <td style="color:#DC2626; text-align:center;">&cross;</td>
+                  <td style="color:#DC2626; text-align:center;">&cross;</td>
+                  <td style="color:#047857; font-weight:700;">&check; Zero-Retraining (15 KB JSON file)</td>
+                </tr>
+                <tr>
+                  <td><b>Edge Power Envelope</b></td>
+                  <td style="color:#DC2626; text-align:center;">&cross;</td>
+                  <td style="color:#DC2626; text-align:center;">&cross;</td>
+                  <td style="color:#047857; font-weight:700;">&check; 16.8W (Jetson Orin Space Locker)</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
 
-          <div class="bullet-item">
-            <span class="bullet-title">💡 Zero Additional Crew Hardware:</span>
-            No cumbersome VR headsets, body markers, or wired gloves needed. Operates entirely via passive fixed cameras in the payload rack.
-          </div>
+          <!-- 9 Operational Domains -->
+          <div style="background:#0F172A; border-radius:6px; padding:8px 10px; color:#fff; font-size:9.5px;">
+            <div style="display:flex; justify-content:space-between; font-weight:800; color:#38BDF8; font-size:10px; margin-bottom:4px; border-bottom:1px solid #334155; padding-bottom:2px;">
+              <span>SPACE &amp; HUMAN SPACEFLIGHT</span>
+              <span>SATELLITE &amp; INFRASTRUCTURE</span>
+              <span>HIGH-RISK &amp; COMM-LIMITED</span>
+            </div>
+            <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 6px; line-height: 1.25;">
+              <div><b>01 GAGANYAAN:</b> Crew-assisted experiments, equipment operation &amp; real-time procedural monitoring.</div>
+              <div><b>04 SATELLITE PAYLOAD:</b> Verify sequences for cameras, robotic payloads, deployment mechanisms.</div>
+              <div><b>07 SUBMARINES:</b> Monitor navigation, machinery maintenance &amp; emergency equipment procedures.</div>
 
-          <div class="bullet-item">
-            <span class="bullet-title">💡 100+ Hours of Ground Review Saved:</span>
-            Ground principal investigators receive instantly searchable step outcome tables instead of scrubbing through hours of raw video footage.
-          </div>
+              <div><b>02 BAS STATION:</b> Continuous monitoring of long-duration experiments &amp; payload operations.</div>
+              <div><b>05 SATELLITE SERVICING:</b> Monitor inspection, connector handling, component replacement.</div>
+              <div><b>08 NUCLEAR FACILITIES:</b> Verify safety-critical maintenance &amp; emergency equipment procedures.</div>
 
-          <div class="bullet-item">
-            <span class="bullet-title">💡 High-Impact Earth Spin-Off Applications:</span>
-            Cleanroom semiconductor manufacturing, BSL-4 high-containment pathogen laboratories, and robotic surgical operating room procedure audits.
+              <div><b>03 LUNAR MISSIONS:</b> Assist crew with payload deployment, sample handling &amp; procedures.</div>
+              <div><b>06 LAUNCH TESTING:</b> Detect missed/out-of-sequence steps during assembly, integration &amp; test.</div>
+              <div><b>09 HAZARDOUS MFG:</b> Monitor workers performing complex procedures with specialized tools.</div>
+            </div>
           </div>
         </div>
       </div>
 
       <div class="slide-footer-bar">
-        @SIH Idea submission- Template | Slide 5
+        @SIH Idea submission- Template
+        <span class="slide-page-num">5</span>
       </div>
     </div>
 
@@ -631,71 +877,87 @@
          ======================================================== -->
     <div class="slide-page" id="slide-6">
       <div class="slide-header">
-        <div class="team-badge">Team: PARIKSHAK</div>
+        <div class="team-oval">unfiltered<br>engineers</div>
         <div class="slide-title">RESEARCH AND REFERENCES</div>
-        <div class="sih-tag"><span class="sih-tag-bulb"></span>SMART INDIA<br>HACKATHON 2026</div>
+        <div class="sih-logo-wrap">
+          <div class="sih-bulb-icon"></div>
+          <div class="sih-text">SMART INDIA<br>HACKATHON<br>2026</div>
+        </div>
       </div>
 
-      <div class="info-card" style="height: calc(100% - 60px); padding: 26px 36px; justify-content: space-around;">
-        <div class="card-title">• Academic Research Foundations &amp; Space Flight Standards</div>
+      <div style="display:grid; grid-template-columns: 1.15fr 0.85fr; gap: 16px; height: 82%;">
+        <!-- Left: Citations and Resources -->
+        <div style="display:flex; flex-direction:column; justify-content:space-between;">
+          <!-- References list -->
+          <div style="background:#F1F5F9; border-radius:6px; padding:10px 12px; font-size:10px; line-height:1.4; display:flex; flex-direction:column; gap:6px;">
+            <div>
+              <b>1). ISRO Space Vision 2047 / Bharatiya Antariksh Station technology-development programme:</b><br>
+              ISRO's 2025–26 annual report states the BAS target of 2035 and identifies human-spaceflight and advanced scientific-payload technologies as development areas. <a href="https://www.isro.gov.in/" target="_blank" style="color:#2563EB;">https://www.isro.gov.in/</a>
+            </div>
+            <div>
+              <b>2). NASA Human Research Program — Risk of Adverse Human Performance Outcomes Due to In-Flight Procedure Failures:</b><br>
+              NASA/SP-2016-640. <a href="https://www.nasa.gov/" target="_blank" style="color:#2563EB;">https://www.nasa.gov/</a>
+            </div>
+            <div>
+              <b>3). 3D Human Pose &amp; Motion:</b><br>
+              Kocabas et al., VIBE: Video Inference for Human Body Pose and Shape Estimation, CVPR 2020. <a href="https://github.com/mkocabas/VIBE" target="_blank" style="color:#2563EB;">https://github.com/mkocabas/VIBE</a>
+            </div>
+            <div>
+              <b>4). CCSDS 130.0-G-3 — Overview of Space Communications Protocols:</b><br>
+              Historical Issue 3, superseded by 130.0-G: <a href="https://ccsds.org/Pubs/130x0g3s.pdf" target="_blank" style="color:#2563EB;">https://ccsds.org/Pubs/130x0g3s.pdf</a>
+            </div>
+          </div>
 
-        <div class="bullet-item">
-          <span class="bullet-title">1. Orientation-Agnostic 3D Human Mesh Recovery (HMR):</span>
-          Kocabas et al., <i>"VIBE: Video Inference for Human Body Pose and Shape Estimation"</i>, IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), 2020. Adapts SMPL-X mesh regression to local rack anchors.
+          <!-- Project Resources -->
+          <div style="background:#FEF3C7; border:1px solid #F59E0B; border-radius:6px; padding:10px 12px; font-size:10.5px;">
+            <div style="font-weight:800; color:#92400E; margin-bottom:4px;">PROJECT RESOURCES</div>
+            <div><b>Live prototype :</b> <a href="https://ruralai-psi.vercel.app" target="_blank" style="color:#2563EB;">ruralai-psi.vercel.app</a></div>
+            <div><b>Source code :</b> <a href="https://github.com/PriyamMishra853/RURALAI-" target="_blank" style="color:#2563EB;">github.com/PriyamMishra853/RURALAI-</a></div>
+            <div><b>Video link :</b> <a href="https://youtu.be/J89bpkdLvMM?si=IVcaThkFfTxDI35M" target="_blank" style="color:#2563EB;">https://youtu.be/J89bpkdLvMM?si=IVcaThkFfTxDI35M</a></div>
+          </div>
+
+          <!-- AI Supercomputer Callout -->
+          <div style="background:#1E293B; color:#fff; border-radius:6px; padding:8px 12px; font-size:10px; display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <b>Compact AI Supercomputer</b><br>
+              <span style="color:#94A3B8;">NVIDIA DGX Spark 4TB Dual Pack</span>
+            </div>
+            <div style="background:#0F172A; border:1px solid #38BDF8; padding:4px 8px; border-radius:4px; color:#38BDF8; font-weight:700;">
+              PARIKSHAK EDGE V1.2
+            </div>
+          </div>
         </div>
 
-        <div class="bullet-item">
-          <span class="bullet-title">2. Microgravity Human Factors &amp; Task Analysis:</span>
-          NASA Human Research Program (HRP) Roadmap: <i>Risk of Adverse Human Performance Outcomes Due to In-Flight Medical Conditions and Procedure Execution Failures</i>, NASA/SP-2016-640.
-        </div>
-
-        <div class="bullet-item">
-          <span class="bullet-title">3. Egocentric Hand-Object Interaction &amp; Spatial Geometry:</span>
-          Damen et al., <i>"The EPIC-KITCHENS Dataset: Collection, Challenges and Baselines"</i>, IEEE Transactions on Pattern Analysis and Machine Intelligence (TPAMI), 2021. Informs proximity vector thresholds.
-        </div>
-
-        <div class="bullet-item">
-          <span class="bullet-title">4. Real-Time Edge Object &amp; Keypoint Detection:</span>
-          Jocher et al., <i>"YOLOv8: Real-Time Computer Vision and Object Pose Estimation Architecture"</i>, Ultralytics, 2023. Optimized for TensorRT and ONNX Runtime execution on edge SBCs.
-        </div>
-
-        <div class="bullet-item">
-          <span class="bullet-title">5. Space Station Operational Telemetry Standards:</span>
-          CCSDS 130.0-G-3 Space Data System Standards: <i>On-Board Autonomous Procedure Execution and Time-Tagged Telemetry Data Standards</i> (Consultative Committee for Space Data Systems).
-        </div>
-
-        <div class="bullet-item">
-          <span class="bullet-title">6. ISRO Gaganyaan &amp; BAS Operational Guidelines:</span>
-          ISRO Guidelines for Crew-Assisted Scientific Payload Operations aboard Low Earth Orbit &amp; Bharatiya Antariksh Station (BAS).
+        <!-- Right: 15 Procedure-Specific Datasets -->
+        <div style="background:#FEF9C3; border:1.5px solid #EAB308; border-radius:6px; padding:12px; font-size:10px; display:flex; flex-direction:column; justify-content:space-between;">
+          <div style="font-weight:800; font-size:11px; color:#854D0E; border-bottom:1px solid #FDE047; padding-bottom:4px;">
+            15 procedure-specific datasets used for training and validation of PARIKSHAK
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px; line-height:1.35; color:#713F12;">
+            <div><b>01 ISRO Sample Experiment:</b> Box-within-box retrieval — Red &amp; Yellow containers</div>
+            <div><b>02 CSP-1: Colloid Processing:</b> Cell staining, vortex mixing &amp; pipette titration</div>
+            <div><b>03 CRX-2: Centrifuge Resuspension:</b> Rotor loading, latch verification &amp; OD check</div>
+            <div><b>04 Microgravity Fluid Handling:</b> Bubble purging, capillary filling &amp; meniscus stabilization</div>
+            <div><b>05 Biological Slide Staining:</b> Multi-reagent sequence &amp; timed incubation</div>
+            <div><b>06 Plant Growth Chamber:</b> Seedling inspection, nutrient injection &amp; lamp check</div>
+            <div><b>07 Protein Crystal Extraction:</b> Cryogenic loop pick-and-place &amp; bubble avoidance</div>
+            <div><b>08 Capillary Flow Experiment:</b> Fluid injection &amp; surface-tension analysis</div>
+            <div><b>09 Avionics Connector Harnessing:</b> Pin insertion &amp; pull-force verification</div>
+            <div><b>10 Glovebox Seal &amp; Airflow:</b> Pressure-differential valve sequence &amp; airflow check</div>
+          </div>
+          <div style="font-size:9.5px; color:#A16207; font-style:italic; border-top:1px dashed #FDE047; padding-top:4px;">
+            +5 Extended Microgravity Datasets: Cell Culture Incubation, Sample Cold-Stowage, Magnetic Latch Operations, Glove Leak Check, Pipette Calibration.
+          </div>
         </div>
       </div>
 
       <div class="slide-footer-bar">
-        @SIH Idea submission- Template | Slide 6
+        @SIH Idea submission- Template
+        <span class="slide-page-num">6</span>
       </div>
     </div>
 
   </div>
 
-  <script>
-    // Copy screenshot image from artifact path if local image file
-    const imgs = document.querySelectorAll('img');
-    imgs.forEach(img => {
-      img.addEventListener('error', () => {
-        // Fallback to placeholder SVG graphic
-        img.style.display = 'none';
-        const parent = img.parentElement;
-        if (parent) {
-          parent.innerHTML = `
-            <div style="padding:20px; text-align:center; color:#94A3B8;">
-              <div style="font-size:36px; margin-bottom:8px;">⚡</div>
-              <div style="font-weight:700; color:#fff; font-size:14px;">PARIKSHAK Edge Vision Engine</div>
-              <div style="font-size:11px; margin-top:4px;">YOLOv8-Pose + 3D Rack Reference Geometry + Real-Time Telemetry</div>
-            </div>
-          `;
-        }
-      });
-    });
-  </script>
 </body>
 </html>

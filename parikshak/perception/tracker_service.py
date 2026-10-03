@@ -112,12 +112,64 @@ class TrackerService:
     def reset(self) -> dict[str, Any]:
         with self.lock:
             self.tracker.reset()
+            if hasattr(self, "rack_hmr") and self.rack_hmr is not None:
+                self.rack_hmr.simulated_camera_angle = 0.0
             if self.video_cap is not None:
                 self.video_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
             dummy = np.zeros((480, 640, 3), dtype=np.uint8)
             annotated, self.last_telemetry = self.tracker.process_frame(dummy)
             _, self.last_telemetry = self._apply_rack_hmr(annotated, self.last_telemetry)
             return self.last_telemetry
+
+    def reset_tracker(self) -> dict[str, Any]:
+        return self.reset()
+
+    def get_telemetry(self) -> dict[str, Any]:
+        with self.lock:
+            if not self.last_telemetry:
+                dummy = np.zeros((480, 640, 3), dtype=np.uint8)
+                annotated, self.last_telemetry = self.tracker.process_frame(dummy)
+                _, self.last_telemetry = self._apply_rack_hmr(annotated, self.last_telemetry)
+            return dict(self.last_telemetry)
+
+    def process_client_frame(self, b64_data: str) -> dict[str, Any]:
+        return self.process_b64_frame(b64_data)
+
+    def get_experiments_list(self) -> dict[str, Any]:
+        experiments = [
+            {
+                "id": "BCX-1",
+                "name": "ISRO Sample Experiment: Two-Box Color Verification (Red & Yellow)",
+                "description": "Outer container tray with two nested colored boxes; verify color detection, orientation-agnostic extraction, and stowage.",
+                "rack": "PAYLOAD-RACK-01",
+                "steps_count": 6,
+            },
+            {
+                "id": "WBP-1",
+                "name": "Water Bottle Protocol (Activity Benchmark)",
+                "description": "Baseline 4-step bottle inspection, grasp & lift, zero-g consumption, and return.",
+                "rack": "BENCH-1",
+                "steps_count": 4,
+            },
+            {
+                "id": "CRX-2",
+                "name": "CRX-2: Colloid Resuspension and Cold Return",
+                "description": "Microgravity colloid sample agitation, optical density check, and cold storage latching.",
+                "rack": "MSG-A (Space Station Rack)",
+                "steps_count": 4,
+            },
+            {
+                "id": "MOA-1",
+                "name": "Multi-Object Activity Sequence",
+                "description": "Sequential multi-object interaction across payload tools and containers.",
+                "rack": "PAYLOAD-RACK-02",
+                "steps_count": 7,
+            },
+        ]
+        return {
+            "experiments": experiments,
+            "active_experiment_id": self.experiment_id,
+        }
 
     def process_b64_frame(self, b64_data: str) -> dict[str, Any]:
         """Accepts base64 encoded JPEG/PNG frame from browser webcam, processes it

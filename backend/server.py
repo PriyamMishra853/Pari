@@ -195,8 +195,9 @@ def create_app():
         return tracker_svc.process_client_frame(b64_image)
 
     @app.post("/api/tracker/reset")
+    @app.post("/api/tracker/restart")
     def tracker_reset() -> dict[str, Any]:
-        return tracker_svc.reset_tracker()
+        return tracker_svc.reset()
 
     @app.get("/api/tracker/telemetry")
     def tracker_telemetry() -> dict[str, Any]:

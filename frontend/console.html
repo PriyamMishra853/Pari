@@ -663,9 +663,9 @@
         Log
       </a>
 
-      <button class="btn-act" id="btn-reset" title="Reset Experiment Tracker">
+      <button class="btn-act" id="btn-reset" title="Restart / Reset Experiment Tracker">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
-        Reset
+        <span id="btn-reset-text">Restart / Reset</span>
       </button>
 
       <a href="/" class="btn-act" title="Back to Mission Landing Page">Home</a>
@@ -919,14 +919,18 @@ S04 | SECURE_CHAMBER | Latch portal and verify zero-g fluid seal | 0.5</textarea
 
     function updateHUD(data) {
       const hmr = data.rack_hmr || {};
-      const stepId = data.step_id || "S02";
-      const act = hmr.current_activity || data.predicted_activity || "INSPECT_PAYLOAD";
-      const conf = Math.round((data.confidence || 0.94) * 100);
+      const stepId = data.step_id || data.active_step_id || "S01";
+      const totalSteps = (data.steps && data.steps.length) || (hmr.total_steps) || 6;
+      const act = hmr.current_activity || data.predicted_activity || data.active_step_name || "INSPECT_PAYLOAD";
+      const conf = Math.round((data.confidence || hmr.confidence || 0.94) * 100);
 
       document.getElementById("hud-activity").textContent = act;
       document.getElementById("hud-conf").textContent = conf + "%";
-      document.getElementById("step-badge").textContent = `STEP ${stepId} / S06`;
-      document.getElementById("step-title").textContent = act;
+      document.getElementById("step-badge").textContent = `STEP ${stepId} / S0${totalSteps}`;
+      document.getElementById("step-title").textContent = data.active_step_name || act;
+      if (data.prompt) {
+        document.getElementById("step-desc").textContent = data.prompt;
+      }
 
       // Distance and contact
       const dist = (hmr.hand_to_tool_m || 0.114) * 100;
@@ -1047,12 +1051,51 @@ S04 | SECURE_CHAMBER | Latch portal and verify zero-g fluid seal | 0.5</textarea
       } catch (err) {}
     });
 
-    // 6. Reset Tracker
-    document.getElementById("btn-reset").addEventListener("click", async () => {
+    // 6. Reset & Restart Tracker
+    const btnReset = document.getElementById("btn-reset");
+    const btnResetText = document.getElementById("btn-reset-text") || btnReset;
+    btnReset.addEventListener("click", async () => {
+      btnReset.disabled = true;
+      btnResetText.textContent = "Restarting...";
       try {
-        await fetch("/api/tracker/reset", { method: "POST" });
-        pollTelemetry();
-      } catch (e) {}
+        const res = await fetch("/api/tracker/reset", { method: "POST" });
+        if (!res.ok) {
+          await fetch("/api/tracker/restart", { method: "POST" });
+        }
+
+        // Reset camera rotation active buttons back to 0° Normal
+        document.querySelectorAll(".btn-rot").forEach(b => b.classList.remove("active"));
+        const btn0 = document.querySelector('.btn-rot[data-angle="0"]');
+        if (btn0) btn0.classList.add("active");
+        document.getElementById("hud-cam-angle").textContent = "0° NORMAL";
+
+        // Restart video feed stream by reloading image src with fresh timestamp
+        const feedImg = document.getElementById("camera-feed-img");
+        if (feedImg && !state.isWebcamActive) {
+          feedImg.src = "/api/tracker/stream?t=" + Date.now();
+        }
+
+        // Reset Copilot guidance text
+        const verdictEl = document.getElementById("copilot-verdict");
+        if (verdictEl) verdictEl.textContent = "READY FOR STEP 1";
+        const revEl = document.getElementById("copilot-review-text");
+        if (revEl) revEl.textContent = "Tracker successfully restarted to Step 1. Ready for protocol execution.";
+        const spkEl = document.getElementById("copilot-spoken-text");
+        if (spkEl) spkEl.textContent = '"Experiment reset. Standby at payload rack."';
+        const impEl = document.getElementById("copilot-improve-note");
+        if (impEl) impEl.textContent = "Hold duration envelopes cleared. Zero-G frame locked.";
+
+        await pollTelemetry();
+        btnResetText.textContent = "✓ Restarted!";
+        setTimeout(() => {
+          btnResetText.textContent = "Restart / Reset";
+          btnReset.disabled = false;
+        }, 1200);
+      } catch (e) {
+        console.error("Restart error:", e);
+        btnResetText.textContent = "Restart / Reset";
+        btnReset.disabled = false;
+      }
     });
 
     // 7. Toggle Webcam Mode
