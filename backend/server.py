@@ -20,6 +20,8 @@ import webbrowser
 from pathlib import Path
 from typing import Any
 
+from starlette.requests import Request
+
 from demo import scenarios as S
 
 ROOT = Path(__file__).resolve().parent.parent
