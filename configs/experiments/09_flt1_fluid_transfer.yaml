@@ -1,0 +1,44 @@
+experiment:
+  id: FLT-1
+  title: "FLT-1 Microgravity Fluid Transfer"
+  category: Fluid physics
+  inspired_by: "Microgravity fluid-handling and capillary transfer experiments"
+  rack_id: FLUIDS-RACK
+  props: "A bottle (source) and a cup or bowl (receiver)"
+  objects: {source: [bottle], receiver: [cup, wine glass, bowl]}
+  stall_s: 15
+  steps:
+    - id: S01
+      name: Stage source and receiver
+      prompt: "Place the source bottle and the receiver cup in view."
+      voice: "Step one. Place the source bottle and the receiver cup in view."
+      require: [{visible: source}, {visible: receiver}]
+      hold_s: 0.8
+      hint: "Put the bottle and the cup side by side on the table."
+      expected_activity: APPROACH_PAYLOAD
+    - id: S02
+      name: Grasp the source bottle
+      prompt: "Grasp the source bottle and lift it."
+      voice: "Step two. Grasp the source bottle and lift it."
+      require: [{in_hand: source}, {lifted: source}]
+      hold_s: 0.8
+      hint: "Pick up the bottle and lift it off the table."
+      expected_activity: GRASP_TOOL
+    - id: S03
+      name: Transfer the fluid
+      prompt: "Tilt the bottle over the receiver to transfer the fluid."
+      voice: "Step three. Tilt the bottle over the receiver to transfer the fluid."
+      require: [{tilted: source}, {near: [source, receiver]}]
+      hold_s: 1.2
+      forbid:
+        - {when: {near_mouth: source}, kind: wrong_action, severity: caution, message: "Wrong action - the source bottle went to the mouth instead of the receiver.", tts: "Caution. Pour into the receiver, do not drink from the source bottle."}
+      hint: "Hold the bottle right next to the cup and tip it sideways."
+      expected_activity: MOVE_TOOL
+    - id: S04
+      name: Return the source bottle
+      prompt: "Stand the bottle upright on the table and release it."
+      voice: "Final step. Stand the bottle upright and release it."
+      require: [{resting: source}, {not: {tilted: source}}, {hands_free: true}]
+      hold_s: 0.8
+      hint: "Put the bottle down upright and move your hands away."
+      expected_activity: RELEASE_TOOL

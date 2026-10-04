@@ -1,0 +1,42 @@
+experiment:
+  id: MYO-1
+  title: "MYO-1 Myogenesis Muscle-Loading Countermeasure"
+  category: Human physiology
+  inspired_by: "ISRO Ax-4 microgravity experiment theme: skeletal-muscle loss (myogenesis) and crew exercise countermeasures"
+  rack_id: CREW-STATION
+  props: "None - body only (sit or stand facing the camera, upper body visible)"
+  objects: {}
+  stall_s: 15
+  steps:
+    - id: S01
+      name: Neutral stance
+      prompt: "Face the camera with your body upright and still."
+      voice: "Step one. Face the camera and hold an upright, neutral stance."
+      require: [{person: true}, {upright: 20}]
+      hold_s: 1.0
+      hint: "Sit or stand straight with your shoulders and face visible."
+      expected_activity: IDLE
+    - id: S02
+      name: Overhead reach
+      prompt: "Raise both hands above your head and hold."
+      voice: "Step two. Raise both hands above your head and hold."
+      require: [{hands_above_head: both}]
+      hold_s: 1.0
+      hint: "Lift both arms straight up above your head."
+      expected_activity: REACH_TOOL
+    - id: S03
+      name: Elbow curls x3
+      prompt: "Perform three slow elbow curls."
+      voice: "Step three. Perform three slow elbow curls, bending fully and straightening fully."
+      require: [{curl_reps: 3}]
+      hold_s: 0.2
+      hint: "Bend the elbow until the hand reaches the shoulder, then straighten the arm fully. Repeat three times."
+      expected_activity: MOVE_TOOL
+    - id: S04
+      name: Return to rest
+      prompt: "Lower your arms and return to the neutral stance."
+      voice: "Final step. Lower your arms and return to neutral."
+      require: [{not: {hands_above_head: any}}, {upright: 20}]
+      hold_s: 1.0
+      hint: "Bring your arms down and sit or stand straight."
+      expected_activity: RETURN_POSITION

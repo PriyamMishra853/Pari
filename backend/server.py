@@ -1,18 +1,20 @@
-"""PARIKSHAK Backend Application & Flight Telemetry Server.
+"""PARIKSHAK mission server.
 
-Hosts:
-  1. Mission Landing Page (/) -> frontend/index.html
-  2. Interactive Flight Console (/console, /app) -> frontend/console.html
-  3. SIH Presentation Deck (/presentation) -> frontend/sih_presentation.html
-  4. Real-time Edge AI Tracking & Video APIs (/api/tracker/*)
-  5. Procedure Verification & Golden Scenario Replay APIs (/api/scenarios, /api/results)
+Pages
+  /              landing page
+  /console       mission workstation (live camera, procedure, copilot, 3D rack world)
+  /presentation  SIH deck
+  /tags          printable AprilTag sheet for the rack frame
+
+API (old /api/tracker/* and /api/guide/* paths are kept as aliases)
+  /api/system, /api/experiments, /api/frame, /api/telemetry, /api/copilot/*, /api/voice/*,
+  /api/video/*, /api/rotation_test/*, /api/dataset/*, /api/rack/*, recordings, reports
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 import threading
 import time
@@ -22,120 +24,137 @@ from typing import Any
 
 from starlette.requests import Request
 
-from demo import scenarios as S
-
 ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from demo import scenarios as S  # noqa: E402
+
 FRONTEND_DIR = ROOT / "frontend"
 LANDING_PAGE = FRONTEND_DIR / "index.html"
 CONSOLE_PAGE = FRONTEND_DIR / "console.html"
 
 
 def get_landing_page() -> str:
-    """Returns the interactive space-themed landing page."""
     if LANDING_PAGE.exists():
         return LANDING_PAGE.read_text(encoding="utf-8")
-    return "<!doctype html><html><head><title>PARIKSHAK</title></head><body><h1>PARIKSHAK</h1><p>Mission Landing Page</p></body></html>"
-
-
-_SHELL_HEAD = ('<!doctype html><html lang="en" data-theme="dark"><head><meta charset="utf-8">'
-               '<meta name="viewport" content="width=device-width, initial-scale=1, '
-               'viewport-fit=cover"><title>PARIKSHAK Mission Workstation</title>'
-               '<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>'
-               '<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/OrbitControls.js"></script>'
-               '</head><body>')
-_SHELL_TAIL = "</body></html>"
+    return "<!doctype html><title>PARIKSHAK</title><h1>PARIKSHAK</h1>"
 
 
 def get_console_page(bundle: dict[str, Any] | None = None) -> str:
-    """Returns the full experiment workstation console page with bundled data."""
-    if not CONSOLE_PAGE.exists():
-        fallback = ROOT / "demo" / "static" / "index.html"
-        body = fallback.read_text(encoding="utf-8") if fallback.exists() else "<h1>Console Not Found</h1>"
-    else:
-        body = CONSOLE_PAGE.read_text(encoding="utf-8")
-
+    body = CONSOLE_PAGE.read_text(encoding="utf-8") if CONSOLE_PAGE.exists() else "<h1>Console not found</h1>"
     if bundle is not None:
         data = json.dumps(bundle, separators=(",", ":")).replace("</", "<\\/")
         body = body.replace("<!--BUNDLE-->", f"<script>window.PARIKSHAK_BUNDLE={data};</script>")
-    if not body.strip().startswith("<!doctype html>"):
-        body = f"{_SHELL_HEAD}{body}{_SHELL_TAIL}"
     return body
 
 
-def create_app():
-    from fastapi import FastAPI, HTTPException, UploadFile, File, Request
-    from fastapi.responses import HTMLResponse, Response, FileResponse, StreamingResponse
-    from fastapi.staticfiles import StaticFiles
-    from fastapi.middleware.cors import CORSMiddleware
-    from parikshak.perception.tracker_service import get_tracker_service
-    from backend.flight_copilot import get_flight_copilot
+def _tags_page(size_m: float) -> str:
+    from parikshak.zerog.config import rack_layout
 
-    app = FastAPI(title="PARIKSHAK Mission Server", docs_url=None, redoc_url=None)
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+    lay = rack_layout()
+    cards = "".join(
+        f'<figure><img src="/api/tags/{i}.png" alt="AprilTag {i}"><figcaption>tag36h11 &middot; ID {i}'
+        f'<br><small>{lay.labels.get(i, "")} &middot; rack position {list(map(float, lay.tags[i]))} m</small></figcaption></figure>'
+        for i in sorted(lay.tags)
     )
+    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rack AprilTags</title><style>
+:root{{--bg:#fff;--fg:#0f172a;--muted:#475569}}
+@media (prefers-color-scheme:dark){{:root:not([data-theme=light]){{--bg:#0b1020;--fg:#e2e8f0;--muted:#94a3b8}}}}
+body{{margin:0;padding:24px 16px;font:15px/1.5 system-ui,sans-serif;background:var(--bg);color:var(--fg)}}
+main{{max-width:960px;margin:auto}} h1{{margin:.2em 0}} p,li{{color:var(--muted)}}
+.grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:18px;margin-top:18px}}
+figure{{margin:0;background:#fff;color:#0f172a;border:1px solid #cbd5e1;border-radius:10px;padding:14px;text-align:center}}
+figure img{{width:100%;image-rendering:pixelated}} small{{color:#475569}}
+@media print{{body{{background:#fff;color:#000}} .noprint{{display:none}} figure{{break-inside:avoid}}}}
+</style></head><body><main>
+<h1>Rack fiducials (AprilTag 36h11)</h1>
+<div class="noprint"><p>The rack is the reference frame. Fix <b>tag 10</b> upright on the rack face (a wall, a box front, the container)
+so the camera sees it together with you. One tag gives the full 6-DoF rack pose; more tags make it steadier.</p>
+<ol><li>Print this page (or show tag 10 full-screen on a phone or tablet).</li>
+<li>Measure the black square's side and enter it as <b>Tag size</b> in the console (configured now: {size_m * 100:.1f} cm).</li>
+<li>Keep the tag flat, upright and well lit. Rotating the laptop is fine - the rack frame stays the reference.</li></ol></div>
+<div class="grid">{cards}</div></main></body></html>"""
 
-    tracker_svc = get_tracker_service()
-    copilot = get_flight_copilot()
 
-    # Mount static assets
-    static_p = FRONTEND_DIR / "static"
-    static_p.mkdir(parents=True, exist_ok=True)
-    app.mount("/static", StaticFiles(directory=str(static_p)), name="static")
+def create_app():
+    from fastapi import FastAPI, File, HTTPException, UploadFile
+    from fastapi.middleware.cors import CORSMiddleware
+    from fastapi.responses import FileResponse, HTMLResponse, Response
+    from fastapi.staticfiles import StaticFiles
 
-    recordings_p = ROOT / "recordings"
-    recordings_p.mkdir(exist_ok=True)
-    app.mount("/recordings", StaticFiles(directory=str(recordings_p)), name="recordings")
+    from backend.app.groq.client import get_client
+    from backend.voice import COMMANDS, LABELS, match, whisper_prompt
+    from parikshak.perception.tracker_service import get_tracker_service
+    from parikshak.zerog.dataset import DatasetRecorder
 
-    reports_p = ROOT / "reports"
-    reports_p.mkdir(exist_ok=True)
-    app.mount("/reports", StaticFiles(directory=str(reports_p)), name="reports")
+    app = FastAPI(title="PARIKSHAK Mission Server", docs_url="/api/docs", redoc_url=None)
+    app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-    # 1. Main Landing Page
+    svc = get_tracker_service()
+
+    for name in ("static", "recordings", "reports"):
+        p = (FRONTEND_DIR / "static") if name == "static" else (ROOT / name)
+        p.mkdir(parents=True, exist_ok=True)
+        app.mount(f"/{name}", StaticFiles(directory=str(p)), name=name)
+
+    async def body(req: Request) -> dict[str, Any]:
+        try:
+            return await req.json()
+        except Exception:
+            return {}
+
+    # ------------------------------------------------------------- pages
     @app.get("/", response_class=HTMLResponse)
     def index() -> str:
         return get_landing_page()
 
-    # 2. Interactive Mission Console (Workstation)
     @app.get("/console", response_class=HTMLResponse)
     @app.get("/app", response_class=HTMLResponse)
     @app.get("/workspace", response_class=HTMLResponse)
     def console() -> str:
         return get_console_page()
 
-    # 3. SIH Presentation Deck
     @app.get("/presentation", response_class=HTMLResponse)
     def presentation_page():
-        p = FRONTEND_DIR / "sih_presentation.html"
-        if not p.exists():
-            p = ROOT / "demo" / "static" / "sih_presentation.html"
-        if p.exists():
-            return HTMLResponse(p.read_text(encoding="utf-8"))
+        for p in (FRONTEND_DIR / "sih_presentation.html", ROOT / "demo" / "static" / "sih_presentation.html"):
+            if p.exists():
+                return HTMLResponse(p.read_text(encoding="utf-8"))
         raise HTTPException(404, "Presentation page not found")
+
+    @app.get("/tags", response_class=HTMLResponse)
+    def tags_page() -> str:
+        return _tags_page(svc.pipeline.rack.tag_size_m)
+
+    @app.get("/api/tags/{tag_id}.png")
+    def tag_png(tag_id: int, px: int = 600):
+        import cv2
+        import numpy as np
+
+        if not (0 <= tag_id < 587):
+            raise HTTPException(404, "tag36h11 ids are 0-586")
+        d = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_APRILTAG_36h11)
+        px = max(100, min(1600, px))
+        m = cv2.aruco.generateImageMarker(d, tag_id, px)
+        q = px // 8
+        canvas = np.full((px + 2 * q, px + 2 * q), 255, np.uint8)
+        canvas[q:q + px, q:q + px] = m
+        ok, buf = cv2.imencode(".png", canvas)
+        return Response(buf.tobytes(), media_type="image/png")
 
     @app.get("/api/download_pptx")
     def download_pptx():
         p = ROOT / "PARIKSHAK_SIH2026_Submission.pptx"
         if p.exists():
-            return FileResponse(
-                path=str(p),
-                filename="PARIKSHAK_SIH2026_Submission.pptx",
-                media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-            )
+            return FileResponse(str(p), filename=p.name,
+                                media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation")
         raise HTTPException(404, "Presentation file not found")
 
-    # 4. Scenario Replay & Verification APIs
+    # ------------------------------------------------- scenario replays
     @app.get("/api/scenarios")
     def list_scenarios() -> dict[str, Any]:
-        return {
-            "default": S.DEFAULT,
-            "groups": S.GROUP_ORDER,
-            "scenarios": S.catalogue(),
-        }
+        return {"default": S.DEFAULT, "groups": S.GROUP_ORDER, "scenarios": S.catalogue()}
 
     @app.get("/api/scenario/{scenario_id}")
     def get_scenario(scenario_id: str) -> dict[str, Any]:
@@ -146,288 +165,254 @@ def create_app():
 
     @app.get("/api/results")
     def get_results() -> dict[str, Any]:
-        eval_path = ROOT / "runs" / "eval.json"
-        eval_crx2 = ROOT / "runs" / "eval_crx2.json"
-        bench_path = ROOT / "runs" / "bench.json"
-        soak_path = ROOT / "runs" / "soak.json"
+        def rd(n):
+            p = ROOT / "runs" / n
+            return json.loads(p.read_text("utf-8")) if p.exists() else None
+        return {"csp1": rd("eval.json"), "crx2": rd("eval_crx2.json"), "bench": rd("bench.json"), "soak": rd("soak.json")}
 
-        return {
-            "csp1": json.loads(eval_path.read_text("utf-8")) if eval_path.exists() else None,
-            "crx2": json.loads(eval_crx2.read_text("utf-8")) if eval_crx2.exists() else None,
-            "bench": json.loads(bench_path.read_text("utf-8")) if bench_path.exists() else None,
-            "soak": json.loads(soak_path.read_text("utf-8")) if soak_path.exists() else None,
-        }
+    # ------------------------------------------------------------ system
+    @app.get("/api/system")
+    def system() -> dict[str, Any]:
+        return svc.system_status()
 
-    # 5. Tracker & Experiment APIs
+    @app.post("/api/mesh_backend")
+    async def mesh_backend(req: Request) -> dict[str, Any]:
+        return svc.set_mesh_backend(str((await body(req)).get("backend", "pose3d")))
+
+    # ------------------------------------------------------- experiments
+    @app.get("/api/experiments")
     @app.get("/api/tracker/experiments")
-    def tracker_get_experiments() -> dict[str, Any]:
-        return tracker_svc.get_experiments_list()
+    def experiments() -> dict[str, Any]:
+        return svc.get_experiments_list()
+
+    @app.get("/api/experiments/object_classes")
+    def object_classes() -> dict[str, Any]:
+        from parikshak.zerog.procedure import PREDICATES, TEXT
+
+        return {"classes": svc.object_classes(),
+                "checks": {k: TEXT.get(k, k) for k in sorted(PREDICATES)}}
+
+    @app.post("/api/experiments/select")
+    @app.post("/api/tracker/set_experiment")
+    async def select_experiment(req: Request) -> dict[str, Any]:
+        return svc.set_experiment(str((await body(req)).get("experiment_id", "WBP-1")))
 
     @app.post("/api/tracker/experiment/{experiment_id}")
-    def tracker_set_experiment(experiment_id: str) -> dict[str, Any]:
-        return tracker_svc.set_experiment(experiment_id)
+    def select_experiment_path(experiment_id: str) -> dict[str, Any]:
+        return svc.set_experiment(experiment_id)
 
-    @app.post("/api/tracker/set_experiment")
-    async def tracker_set_experiment_json(req: Request) -> dict[str, Any]:
-        data = await req.json()
-        exp_id = str(data.get("experiment_id", "WBP-1"))
-        return tracker_svc.set_experiment(exp_id)
+    @app.post("/api/experiments/custom")
+    @app.post("/api/experiment/create_custom")
+    async def create_custom(req: Request) -> dict[str, Any]:
+        res = svc.create_custom_experiment(await body(req))
+        if "error" in res:
+            raise HTTPException(400, res["error"])
+        return res
 
-    @app.get("/api/tracker/cameras")
-    def tracker_list_cameras() -> dict[str, Any]:
-        cams = tracker_svc.list_available_cameras()
-        return {"cameras": cams}
-
-    @app.post("/api/tracker/start_camera")
-    async def tracker_start_camera(req: Request) -> dict[str, Any]:
-        cam_idx = -1
-        try:
-            body = await req.json()
-            cam_idx = int(body.get("camera_index", body.get("cam_idx", -1)))
-        except Exception:
-            pass
-        if cam_idx == -1 and "cam_idx" in req.query_params:
-            try:
-                cam_idx = int(req.query_params["cam_idx"])
-            except Exception:
-                pass
-        return tracker_svc.start_local_camera(cam_idx)
-
-    @app.post("/api/tracker/stop_camera")
-    def tracker_stop_camera() -> dict[str, Any]:
-        return tracker_svc.stop_local_camera()
-
-    @app.get("/api/tracker/camera_frame")
-    def tracker_camera_frame() -> dict[str, Any]:
-        return tracker_svc.get_camera_frame_b64()
-
-    @app.get("/api/tracker/stream")
-    @app.get("/api/tracker/camera_stream")
-    def tracker_stream():
-        def frame_generator():
-            while True:
-                jpeg_bytes = tracker_svc.get_camera_frame_mjpeg()
-                if jpeg_bytes is None:
-                    time.sleep(0.04)
-                    continue
-                yield (b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + jpeg_bytes + b"\r\n")
-                time.sleep(0.03)
-
-        return StreamingResponse(frame_generator(), media_type="multipart/x-mixed-replace; boundary=frame")
-
+    # ------------------------------------------------------------ frames
+    @app.post("/api/frame")
     @app.post("/api/tracker/frame")
-    async def tracker_process_frame(req: Request) -> dict[str, Any]:
-        data = await req.json()
-        b64_image = data.get("image", "") or data.get("frame", "")
-        if not b64_image:
-            raise HTTPException(400, "image or frame base64 string required")
-        return tracker_svc.process_client_frame(b64_image)
+    async def frame(req: Request) -> dict[str, Any]:
+        data = await body(req)
+        img = data.get("image") or data.get("frame") or ""
+        if not img:
+            raise HTTPException(400, "image (base64 JPEG) required")
+        return svc.process_b64_frame(img)
 
+    @app.get("/api/telemetry")
+    @app.get("/api/tracker/telemetry")
+    def telemetry() -> dict[str, Any]:
+        return svc.get_telemetry()
+
+    @app.post("/api/reset")
     @app.post("/api/tracker/reset")
     @app.post("/api/tracker/restart")
-    def tracker_reset() -> dict[str, Any]:
-        return tracker_svc.reset()
-
-    @app.get("/api/tracker/telemetry")
-    def tracker_telemetry() -> dict[str, Any]:
-        return tracker_svc.get_telemetry()
-
-    @app.post("/api/tracker/set_camera_rotation")
-    async def tracker_set_rotation(req: Request) -> dict[str, Any]:
-        data = await req.json()
-        angle = float(data.get("angle", 0.0))
-        tracker_svc.set_camera_rotation(angle)
-        return tracker_svc.get_rotation_test_telemetry()
-
-    @app.get("/api/tracker/rotation_test")
-    def tracker_rotation_test() -> dict[str, Any]:
-        return tracker_svc.get_rotation_test_telemetry()
+    def reset() -> dict[str, Any]:
+        return svc.reset()
 
     @app.post("/api/tracker/toggles")
-    async def tracker_set_toggles(req: Request) -> dict[str, Any]:
-        data = await req.json()
-        return {"toggles": tracker_svc.set_toggles(data)}
+    async def toggles(req: Request) -> dict[str, Any]:
+        return {"toggles": svc.set_toggles(await body(req))}
 
-    @app.get("/api/tracker/sam3d_state")
-    def tracker_sam3d_state() -> dict[str, Any]:
-        with tracker_svc.lock:
-            state_data = tracker_svc.last_telemetry.get("rack_hmr")
-            if not state_data:
-                dummy_state = tracker_svc.rack_hmr.evaluate_rack_pose({})
-                state_data = tracker_svc.rack_hmr.to_dict(dummy_state)
-            return state_data
-
+    # ----------------------------------------------------------- copilot
+    @app.post("/api/copilot/review")
     @app.post("/api/guide/review_step")
-    async def guide_review_step(req: Request) -> dict[str, Any]:
-        data = await req.json()
-        exp_id = data.get("experiment_id", tracker_svc.experiment_id)
-        step_id = data.get("step_id", tracker_svc.last_telemetry.get("step_id", "S01"))
-        return copilot.review_current_step(exp_id, step_id, tracker_svc.last_telemetry)
+    def copilot_review() -> dict[str, Any]:
+        return svc.copilot_action("review")
 
+    @app.post("/api/copilot/next")
     @app.post("/api/guide/convey_next")
-    async def guide_convey_next(req: Request) -> dict[str, Any]:
-        data = await req.json()
-        exp_id = data.get("experiment_id", tracker_svc.experiment_id)
-        curr_step = data.get("current_step_id", tracker_svc.last_telemetry.get("step_id", "S01"))
-        return copilot.convey_next_step(exp_id, curr_step, tracker_svc.last_telemetry)
+    def copilot_next() -> dict[str, Any]:
+        return svc.copilot_action("next")
 
-    @app.post("/api/experiment/create_custom")
-    async def experiment_create_custom(req: Request) -> dict[str, Any]:
-        data = await req.json()
-        title = data.get("title", "Custom Payload Procedure")
-        description = data.get("description", "User-defined on-board experiment")
-        steps = data.get("steps", [])
-        return copilot.create_custom_experiment(title, description, steps)
+    @app.get("/api/copilot/status_line")
+    def copilot_status() -> dict[str, Any]:
+        return svc.status_line()
 
+    @app.get("/api/copilot/feed")
+    def copilot_feed(after: int = 0) -> dict[str, Any]:
+        return {"feed": svc.copilot.since(after)}
+
+    @app.post("/api/copilot/auto")
+    async def copilot_auto(req: Request) -> dict[str, Any]:
+        svc.copilot.auto_ai = bool((await body(req)).get("enabled", True))
+        return {"auto_ai": svc.copilot.auto_ai}
+
+    # ------------------------------------------------------------- voice
+    @app.get("/api/voice/commands")
+    def voice_commands() -> dict[str, Any]:
+        return {"commands": COMMANDS, "labels": LABELS, "stt": get_client().status()}
+
+    @app.post("/api/voice/command")
+    async def voice_command(file: UploadFile = File(...)) -> dict[str, Any]:
+        audio = await file.read()
+        if len(audio) < 1200:
+            return {"transcript": "", "command": None, "error": "audio too short"}
+        text, meta = get_client().transcribe(audio, file.filename or "voice.webm", whisper_prompt())
+        if text is None:
+            return {"transcript": None, "command": None, **meta}
+        m = match(text)
+        return {"transcript": text, **m, **meta}
+
+    # ------------------------------------------------------------- video
+    @app.post("/api/video/upload")
     @app.post("/api/tracker/upload_video")
-    async def tracker_upload_video(file: UploadFile = File(...)) -> dict[str, Any]:
-        upload_dir = ROOT / "runs" / "uploads"
-        upload_dir.mkdir(parents=True, exist_ok=True)
-        file_path = upload_dir / file.filename
-        contents = await file.read()
-        file_path.write_bytes(contents)
-        res = tracker_svc.load_video_file(file_path)
-        res["filename"] = file.filename
+    async def upload_video(file: UploadFile = File(...)) -> dict[str, Any]:
+        up = ROOT / "runs" / "uploads"
+        up.mkdir(parents=True, exist_ok=True)
+        name = Path(file.filename or "upload.mp4").name
+        p = up / name
+        p.write_bytes(await file.read())
+        res = svc.load_video_file(p)
+        res["filename"] = name
         return res
 
-    @app.post("/api/tracker/load_demo_video")
-    def tracker_load_demo_video() -> dict[str, Any]:
-        demo_path = ROOT / "runs" / "uploads" / "demo_bottle_run.mp4"
-        if not demo_path.exists():
-            tracker_svc.generate_demo_video(str(demo_path))
-        return tracker_svc.load_video_file(demo_path)
+    @app.post("/api/video/recording/{name}")
+    def play_recording(name: str) -> dict[str, Any]:
+        p = ROOT / "recordings" / Path(name).name
+        return svc.load_video_file(p)
 
+    @app.get("/api/video/next")
     @app.get("/api/tracker/video_frame")
     @app.get("/api/tracker/next_video_frame")
-    def tracker_video_frame() -> dict[str, Any]:
-        return tracker_svc.get_next_video_frame()
+    def video_next() -> dict[str, Any]:
+        return svc.get_next_video_frame()
 
-    @app.post("/api/tracker/simulate")
-    async def tracker_simulate(req: Request) -> dict[str, Any]:
-        data = await req.json()
-        event_name = str(data.get("event", "nominal_step"))
-        return tracker_svc.simulate_event(event_name)
+    @app.post("/api/video/stop")
+    def video_stop() -> dict[str, Any]:
+        return svc.stop_video()
 
+    # ------------------------------------------------------ rotation test
+    @app.post("/api/rotation_test/start")
+    def rot_start() -> dict[str, Any]:
+        return svc.pipeline.start_rotation_test()
+
+    @app.post("/api/rotation_test/stop")
+    def rot_stop() -> dict[str, Any]:
+        return svc.pipeline.stop_rotation_test()
+
+    @app.get("/api/rotation_test")
+    @app.get("/api/tracker/rotation_test")
+    def rot_report() -> dict[str, Any]:
+        return svc.pipeline.rotation_report()
+
+    @app.post("/api/rack/tag_size")
+    async def tag_size(req: Request) -> dict[str, Any]:
+        size = float((await body(req)).get("size_m", 0.08))
+        svc.pipeline.rack.set_tag_size(size)
+        return {"tag_size_m": svc.pipeline.rack.tag_size_m}
+
+    # ----------------------------------------------------------- dataset
+    @app.post("/api/dataset/start")
+    async def dataset_start(req: Request) -> dict[str, Any]:
+        every = int((await body(req)).get("every", 3))
+        return svc.dataset.start(svc.experiment_id, svc.spec, every)
+
+    @app.post("/api/dataset/stop")
+    def dataset_stop() -> dict[str, Any]:
+        return svc.dataset.stop()
+
+    @app.get("/api/dataset")
+    def dataset_list() -> dict[str, Any]:
+        return {"status": svc.dataset.status(), "sessions": DatasetRecorder.list_sessions()}
+
+    @app.get("/api/dataset/download/{experiment_id}/{session}")
+    def dataset_download(experiment_id: str, session: str):
+        data = DatasetRecorder.zip_session(experiment_id, session)
+        if data is None:
+            raise HTTPException(404, "dataset session not found")
+        return Response(data, media_type="application/zip",
+                        headers={"Content-Disposition": f'attachment; filename="{experiment_id}_{session}.zip"'})
+
+    # -------------------------------------------------------- recordings
     @app.post("/api/tracker/save_recording")
-    async def tracker_save_recording(req: Request) -> dict[str, Any]:
-        recordings_dir = ROOT / "recordings"
-        recordings_dir.mkdir(exist_ok=True)
-        timestamp = time.strftime("%Y%m%d_%H%M%S")
-        content_type = req.headers.get("content-type", "")
-        file_bytes = b""
-        filename = ""
-
-        if "multipart/form-data" in content_type:
-            try:
-                form = await req.form()
-                file_item = form.get("file")
-                if file_item is not None and hasattr(file_item, "read"):
-                    filename = getattr(file_item, "filename", "") or ""
-                    file_bytes = await file_item.read()
-            except Exception:
-                pass
-
-        if not file_bytes:
-            file_bytes = await req.body()
-
-        exp_id = tracker_svc.experiment_id
-        if filename:
-            safe_name = Path(filename).name
-            if not safe_name.endswith((".webm", ".mp4", ".mkv", ".avi")):
-                safe_name = f"{safe_name}_{timestamp}.webm"
-        else:
-            safe_name = f"RUN_{exp_id}_{timestamp}.webm"
-
-        target_path = recordings_dir / safe_name
-        target_path.write_bytes(file_bytes)
-        file_size = target_path.stat().st_size
-        return {
-            "status": "saved",
-            "filename": safe_name,
-            "filepath": str(target_path.resolve()),
-            "size_bytes": file_size,
-            "size_mb": round(file_size / (1024 * 1024), 2),
-            "url": f"/recordings/{safe_name}",
-        }
+    async def save_recording(req: Request) -> dict[str, Any]:
+        rec = ROOT / "recordings"
+        rec.mkdir(exist_ok=True)
+        ts = time.strftime("%Y%m%d_%H%M%S")
+        data, filename = b"", ""
+        if "multipart/form-data" in req.headers.get("content-type", ""):
+            form = await req.form()
+            f = form.get("file")
+            if f is not None and hasattr(f, "read"):
+                filename = getattr(f, "filename", "") or ""
+                data = await f.read()
+        if not data:
+            data = await req.body()
+        name = Path(filename).name if filename else f"PARIKSHAK_{svc.experiment_id}_{ts}.webm"
+        if not name.endswith((".webm", ".mp4", ".mkv")):
+            name = f"{name}_{ts}.webm"
+        p = rec / name
+        p.write_bytes(data)
+        return {"status": "saved", "filename": name, "filepath": str(p.resolve()),
+                "size_mb": round(p.stat().st_size / 1048576, 2), "url": f"/recordings/{name}"}
 
     @app.get("/api/tracker/recordings")
-    def tracker_list_recordings() -> dict[str, Any]:
-        recordings_dir = ROOT / "recordings"
-        recordings_dir.mkdir(exist_ok=True)
+    def recordings() -> dict[str, Any]:
+        rec = ROOT / "recordings"
         files = []
-        for ext in ("*.webm", "*.mp4", "*.mkv", "*.avi"):
-            for f in recordings_dir.glob(ext):
-                stat = f.stat()
-                files.append({
-                    "name": f.name,
-                    "filepath": str(f.resolve()),
-                    "size_bytes": stat.st_size,
-                    "size_mb": round(stat.st_size / (1024 * 1024), 2),
-                    "mtime": stat.st_mtime,
-                    "url": f"/recordings/{f.name}",
-                })
+        for f in rec.glob("*"):
+            if f.suffix.lower() in (".webm", ".mp4", ".mkv", ".avi") and f.stat().st_size > 1000:
+                files.append({"name": f.name, "size_mb": round(f.stat().st_size / 1048576, 2),
+                              "mtime": f.stat().st_mtime, "url": f"/recordings/{f.name}"})
         files.sort(key=lambda x: x["mtime"], reverse=True)
-        return {"recordings": files, "count": len(files), "directory": str(recordings_dir.resolve())}
+        return {"recordings": files, "count": len(files), "directory": str(rec.resolve())}
 
+    # ----------------------------------------------------------- reports
     @app.post("/api/tracker/generate_report")
-    def tracker_generate_report() -> dict[str, Any]:
+    def generate_report() -> dict[str, Any]:
         from parikshak.perception.report_generator import generate_structured_text_report, save_reports_to_disk
-        res = save_reports_to_disk(tracker_svc)
-        res["preview_text"] = generate_structured_text_report(tracker_svc)
+
+        res = save_reports_to_disk(svc)
+        res["preview_text"] = generate_structured_text_report(svc)
         return res
 
-    @app.get("/api/tracker/download_report/text")
-    def tracker_download_text_report():
-        from parikshak.perception.report_generator import generate_structured_text_report
-        txt = generate_structured_text_report(tracker_svc)
-        exp_id = tracker_svc.experiment_id
-        timestamp = time.strftime("%Y%m%d_%H%M%S")
-        filename = f"PARIKSHAK_REPORT_{exp_id}_{timestamp}.txt"
-        return Response(
-            content=txt.encode("utf-8"),
-            media_type="text/plain; charset=utf-8",
-            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-        )
+    @app.get("/api/tracker/download_report/{kind}")
+    def download_report(kind: str):
+        from parikshak.perception.report_generator import generate_pdf_report, generate_structured_text_report
 
-    @app.get("/api/tracker/download_report/pdf")
-    def tracker_download_pdf_report():
-        from parikshak.perception.report_generator import generate_pdf_report
-        pdf_bytes = generate_pdf_report(tracker_svc)
-        exp_id = tracker_svc.experiment_id
-        timestamp = time.strftime("%Y%m%d_%H%M%S")
-        filename = f"PARIKSHAK_REPORT_{exp_id}_{timestamp}.pdf"
-        return Response(
-            content=pdf_bytes,
-            media_type="application/pdf",
-            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-        )
+        ts = time.strftime("%Y%m%d_%H%M%S")
+        if kind == "pdf":
+            return Response(generate_pdf_report(svc), media_type="application/pdf",
+                            headers={"Content-Disposition": f'attachment; filename="PARIKSHAK_REPORT_{svc.experiment_id}_{ts}.pdf"'})
+        return Response(generate_structured_text_report(svc).encode("utf-8"), media_type="text/plain; charset=utf-8",
+                        headers={"Content-Disposition": f'attachment; filename="PARIKSHAK_REPORT_{svc.experiment_id}_{ts}.txt"'})
 
     @app.get("/api/tracker/reports")
-    def tracker_list_reports() -> dict[str, Any]:
-        reports_dir = ROOT / "reports"
-        reports_dir.mkdir(exist_ok=True)
-        files = []
-        for ext in ("*.txt", "*.pdf"):
-            for f in reports_dir.glob(ext):
-                stat = f.stat()
-                files.append({
-                    "name": f.name,
-                    "filepath": str(f.resolve()),
-                    "size_bytes": stat.st_size,
-                    "size_kb": round(stat.st_size / 1024, 1),
-                    "is_pdf": f.suffix.lower() == ".pdf",
-                    "mtime": stat.st_mtime,
-                    "url": f"/reports/{f.name}",
-                })
+    def reports() -> dict[str, Any]:
+        rd = ROOT / "reports"
+        files = [{"name": f.name, "size_kb": round(f.stat().st_size / 1024, 1), "is_pdf": f.suffix == ".pdf",
+                  "mtime": f.stat().st_mtime, "url": f"/reports/{f.name}"}
+                 for f in rd.glob("*") if f.suffix in (".txt", ".pdf")]
         files.sort(key=lambda x: x["mtime"], reverse=True)
-        return {"reports": files, "count": len(files), "directory": str(reports_dir.resolve())}
+        return {"reports": files, "count": len(files)}
 
     return app
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description="Start PARIKSHAK Mission Telemetry Server.")
-    ap.add_argument("--port", type=int, default=8765)
+    ap = argparse.ArgumentParser(description="Start the PARIKSHAK mission server.")
+    ap.add_argument("--port", type=int, default=8766)
     ap.add_argument("--host", type=str, default="127.0.0.1")
     ap.add_argument("--no-browser", action="store_true", help="Do not open a browser tab automatically")
     args = ap.parse_args(argv)
@@ -435,19 +420,18 @@ def main(argv: list[str] | None = None) -> int:
     import uvicorn
 
     url = f"http://{args.host}:{args.port}/"
-    print(f"\n=======================================================")
-    print(f"[OK] PARIKSHAK Mission Server live at {url}")
-    print(f"   * Landing Page:   {url}")
-    print(f"   * Flight Console: {url}console")
-    print(f"   * SIH Deck:       {url}presentation")
-    print(f"=======================================================\n")
-
+    print("\n=======================================================")
+    print(f"[OK] PARIKSHAK Mission Server  {url}")
+    print(f"   * Landing page : {url}")
+    print(f"   * Console      : {url}console")
+    print(f"   * Rack tags    : {url}tags")
+    print(f"   * SIH deck     : {url}presentation")
+    print("=======================================================\n", flush=True)
     if not args.no_browser:
-        threading.Timer(1.2, webbrowser.open, args=(url,)).start()
-
+        threading.Timer(2.5, webbrowser.open, args=(url + "console",)).start()
     uvicorn.run(create_app(), host=args.host, port=args.port, log_level="warning")
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

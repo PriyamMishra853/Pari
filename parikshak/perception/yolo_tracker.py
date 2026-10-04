@@ -107,14 +107,45 @@ class YoloExperimentTracker:
         self.init_procedure(experiment_id)
 
     def load_models(self) -> None:
+        from pathlib import Path
+
         from ultralytics import YOLO
-        # Lightweight models running real-time on CPU
-        self.det_model = YOLO("yolov8n.pt")
-        self.pose_model = YOLO("yolov8n-pose.pt")
-        # Warm up models on dummy tensor so first live camera frame has zero cold-start delay
+
+        root = Path(__file__).resolve().parents[2]
+        # ONNX Runtime is ~1.5x faster than PyTorch on this class of CPU.
+        det_onnx = root / "yolov8n.onnx"
+        self.det_model = YOLO(str(det_onnx), task="detect") if det_onnx.exists() else YOLO(str(root / "yolov8n.pt"))
+        self._pose_onnx = root / "yolov8n-pose.onnx"
+        self._pose_pt = root / "yolov8n-pose.pt"
+        self._pose_model = None
+        # Per-frame injections from the zero-g pipeline (parikshak/zerog/pipeline.py):
+        #   external_pose_mode: BlazePose supplies the skeleton; YOLO-pose only runs as a fallback
+        #   external_pose:      17x3 COCO keypoints (x, y, conf) in this frame, or None
+        #   injected_det:       shared YOLO detection result for this frame
+        self.external_pose_mode = False
+        self.external_pose = None
+        self.injected_det = None
+        self.render_hud = True
+        self.last_pose_source = "none"
+        self.overlay_objects: list[dict[str, Any]] = []
         dummy = np.zeros((320, 320, 3), dtype=np.uint8)
         self.det_model(dummy, imgsz=320, verbose=False)
-        self.pose_model(dummy, imgsz=320, verbose=False)
+
+    @property
+    def pose_model(self):
+        if self._pose_model is None:
+            from ultralytics import YOLO
+
+            if self._pose_onnx.exists():
+                self._pose_model = YOLO(str(self._pose_onnx), task="pose")
+            else:
+                self._pose_model = YOLO(str(self._pose_pt))
+        return self._pose_model
+
+    def _detect(self, frame: np.ndarray):
+        if self.injected_det is not None:
+            return self.injected_det
+        return self.det_model(frame, imgsz=320, verbose=False)[0]
 
     def init_procedure(self, experiment_id: str) -> None:
         self.experiment_id = experiment_id.upper()
@@ -374,7 +405,7 @@ class YoloExperimentTracker:
             return self._process_moa1_frame(frame, current_time, is_dummy_frame)
 
         # 1. Run YOLO Object Detection with imgsz=320 for real-time high-FPS CPU inference
-        det_results = self.det_model(frame, imgsz=320, verbose=False)[0]
+        det_results = self._detect(frame)
         detected_objects = []
         target_box = None
         target_conf = 0.0
@@ -799,8 +830,16 @@ class YoloExperimentTracker:
                             self.s04_settle_duration = max(0.0, self.s04_settle_duration - (dt * 0.2))
 
         # 5. Draw High-Tech Mission Control Visual HUD (OpenCV)
-        annotated = frame.copy()
-        self._render_hud(
+        self.overlay_objects = [o for o in (
+            {"label": "target bottle", "cls": "bottle", "box": list(target_box), "conf": round(float(target_conf), 2),
+             "state": [n for n, f in (("IN HAND", hand_contact_target), ("LIFTED", is_lifted), ("AT MOUTH", near_mouth),
+                                      ("DRINKING", is_drinking_pose)) if f],
+             "color": "#a3e635" if is_drinking_pose else "#22d3ee"} if target_box is not None else None,
+            {"label": "wrong object", "cls": "cup", "box": list(confusable_box), "conf": 0.0, "state": ["CONFUSABLE"],
+             "color": "#f97316"} if confusable_box is not None else None,
+        ) if o is not None]
+        annotated = frame.copy() if self.render_hud else frame
+        if self.render_hud: self._render_hud(
             annotated,
             target_box=target_box,
             confusable_box=confusable_box,
@@ -974,12 +1013,17 @@ class YoloExperimentTracker:
         if is_dummy_frame:
             return empty_skeleton
 
-        pose_results = self.pose_model(frame, imgsz=320, verbose=False)[0]
-        if len(pose_results.keypoints) == 0 or pose_results.keypoints.data.shape[1] < 17:
-            return empty_skeleton
-
-        # Take primary detected person
-        kpts = pose_results.keypoints.data[0].cpu().numpy()
+        if self.external_pose_mode and self.external_pose is not None:
+            kpts = np.asarray(self.external_pose, dtype=np.float64)
+            self.last_pose_source = "blazepose"
+        else:
+            pose_results = self.pose_model(frame, imgsz=320, verbose=False)[0]
+            if len(pose_results.keypoints) == 0 or pose_results.keypoints.data.shape[1] < 17:
+                self.last_pose_source = "none"
+                return empty_skeleton
+            # Take primary detected person
+            kpts = pose_results.keypoints.data[0].cpu().numpy()
+            self.last_pose_source = "yolo-pose"
 
         keypoints_list = []
         visible_indices = set()
@@ -1514,7 +1558,7 @@ class YoloExperimentTracker:
         best_bottle_conf = 0.0
 
         if not is_dummy_frame and self.det_model is not None:
-            det_results = self.det_model(frame, imgsz=320, verbose=False)[0]
+            det_results = self._detect(frame)
 
             for box in det_results.boxes:
                 cls_id = int(box.cls[0].item())
@@ -1543,9 +1587,6 @@ class YoloExperimentTracker:
                 self.moa1_initial_chair_y = (chair_box[1] + chair_box[3]) / 2.0
         elif self.moa1_last_chair_box is not None:
             chair_box = self.moa1_last_chair_box
-        elif skeleton_data["detected"]:
-            chair_box = (float(w * 0.2), float(h * 0.45), float(w * 0.8), float(h * 0.95))
-            self.moa1_chair_box = chair_box
 
         if phone_box is not None:
             self.moa1_phone_box = phone_box
@@ -1907,8 +1948,16 @@ class YoloExperimentTracker:
                     self.moa1_s07_hold_duration = max(0.0, self.moa1_s07_hold_duration - dt * 0.3)
 
         # 4. Render HUD
-        annotated = frame.copy()
-        self._render_moa1_hud(
+        self.overlay_objects = [o for o in (
+            {"label": "chair", "cls": "chair", "box": list(chair_box), "conf": round(best_chair_conf, 2),
+             "state": ["PULLED"] if self.moa1_chair_pulled else [], "color": "#22d3ee"} if chair_box is not None else None,
+            {"label": "phone", "cls": "cell phone", "box": list(phone_box), "conf": round(best_phone_conf, 2),
+             "state": ["PICKED"] if self.moa1_phone_picked else [], "color": "#22d3ee"} if phone_box is not None else None,
+            {"label": "bottle", "cls": "bottle", "box": list(bottle_box), "conf": round(best_bottle_conf, 2),
+             "state": ["LIFTED"] if self.moa1_bottle_lifted else [], "color": "#22d3ee"} if bottle_box is not None else None,
+        ) if o is not None]
+        annotated = frame.copy() if self.render_hud else frame
+        if self.render_hud: self._render_moa1_hud(
             annotated,
             chair_box=chair_box,
             phone_box=phone_box,
@@ -2257,7 +2306,14 @@ class YoloExperimentTracker:
         b_int = b_ch.astype(np.int16)
         rgb_red = ((r_int - g_int > 12) & (r_int - b_int > 12) & (r_ch > 42)).astype(np.uint8) * 255
 
-        mask_red = cv2.bitwise_and(hsv_red, rgb_red)
+        # Skin is red-orange in HSV and passes loose red/yellow tests, so faces and
+        # hands were being detected as boxes. Exclude the YCrCb skin cluster and
+        # require real saturation (painted boxes are far more saturated than skin).
+        ycc = cv2.cvtColor(frame, cv2.COLOR_BGR2YCrCb)
+        skin = cv2.inRange(ycc, np.array([0, 133, 77]), np.array([255, 173, 127]))
+        not_skin = cv2.bitwise_not(skin)
+        sat_ok = cv2.inRange(hsv, np.array([0, 90, 50]), np.array([180, 255, 255]))
+        mask_red = cv2.bitwise_and(cv2.bitwise_and(hsv_red, rgb_red), cv2.bitwise_and(not_skin, sat_ok))
         mask_red = cv2.morphologyEx(mask_red, cv2.MORPH_OPEN, k_clean)
         mask_red = cv2.morphologyEx(mask_red, cv2.MORPH_CLOSE, k_clean)
 
@@ -2271,7 +2327,7 @@ class YoloExperimentTracker:
             & (np.abs(r_int - g_int) < 75)
         ).astype(np.uint8) * 255
 
-        mask_yellow = cv2.bitwise_and(hsv_yellow, rgb_yellow)
+        mask_yellow = cv2.bitwise_and(cv2.bitwise_and(hsv_yellow, rgb_yellow), cv2.bitwise_and(not_skin, sat_ok))
         mask_yellow = cv2.morphologyEx(mask_yellow, cv2.MORPH_OPEN, k_clean)
         mask_yellow = cv2.morphologyEx(mask_yellow, cv2.MORPH_CLOSE, k_clean)
 
@@ -2313,11 +2369,18 @@ class YoloExperimentTracker:
 
         candidate_container = None
         best_cont_area = 0.0
+        # The crew member's own silhouette is the biggest edge contour in the
+        # frame; a candidate that contains the shoulders/hips is the person, not
+        # the container.
+        torso_pts = [(k["x"], k["y"]) for k in skeleton_data.get("keypoints", [])
+                     if k.get("visible") and k.get("id") in (5, 6, 11, 12)]
         for c in cnts_edges:
             ox, oy, ow, oh = cv2.boundingRect(c)
             b_area = float(ow * oh)
             c_area = cv2.contourArea(c)
             eff_area = max(b_area, c_area)
+            if sum(1 for px_, py_ in torso_pts if ox <= px_ <= ox + ow and oy <= py_ <= oy + oh) >= 2:
+                continue
             if 15000.0 <= eff_area <= 280000.0 and ow >= 150 and oh >= 110:
                 if (float(ow) / max(1.0, float(oh))) < 3.5:
                     if eff_area > best_cont_area:
@@ -2564,8 +2627,16 @@ class YoloExperimentTracker:
                         self.bcx1_s06_hold_duration = max(0.0, self.bcx1_s06_hold_duration - (dt * 0.3))
 
         # 5. Draw High-Tech Mission Control Visual HUD for BCX-1
-        annotated = frame.copy()
-        self._render_bcx1_hud(
+        self.overlay_objects = [o for o in (
+            {"label": "container", "cls": "container", "box": list(outer_box), "conf": 1.0,
+             "state": ["LOCKED"], "color": "#60a5fa"} if (outer_box is not None and self.bcx1_container_locked) else None,
+            {"label": "red box", "cls": "red_box", "box": list(red_box), "conf": 0.9,
+             "state": [n for n, f in (("INSIDE", red_inside), ("COLLISION", is_colliding)) if f], "color": "#ef4444"} if red_box is not None else None,
+            {"label": "yellow box", "cls": "yellow_box", "box": list(yellow_box), "conf": 0.9,
+             "state": [n for n, f in (("INSIDE", yellow_inside), ("COLLISION", is_colliding)) if f], "color": "#facc15"} if yellow_box is not None else None,
+        ) if o is not None]
+        annotated = frame.copy() if self.render_hud else frame
+        if self.render_hud: self._render_bcx1_hud(
             annotated,
             outer_box=outer_box,
             red_box=red_box,

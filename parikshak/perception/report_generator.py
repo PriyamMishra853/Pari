@@ -179,7 +179,7 @@ def generate_structured_text_report(tracker_service_or_tracker: Any) -> str:
     lines.append(f"Execution Outcome    : {status_label}")
     lines.append(f"Compliance Rating    : {compliance_score}% ({completed_count}/{len(steps)} steps nominal)")
     lines.append(f"Total Mission Clock  : {_format_time_delta(total_duration_s)} ({total_duration_s:.1f} s)")
-    lines.append(f"Vision Processed     : {total_frames:,} frames (25.0 FPS nominal)")
+    lines.append(f"Vision Processed     : {total_frames:,} frames processed")
     lines.append(f"Recorded Deviations  : {len(alerts)} alerts logged")
     lines.append("")
 

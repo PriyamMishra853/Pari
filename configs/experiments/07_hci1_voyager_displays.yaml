@@ -1,0 +1,42 @@
+experiment:
+  id: HCI-1
+  title: "HCI-1 Voyager Displays Screen Interaction"
+  category: Human factors
+  inspired_by: "ISRO Ax-4 microgravity experiment theme: effect of computer displays on crew interaction and cognition"
+  rack_id: CREW-STATION
+  props: "A phone or tablet"
+  objects: {display: [cell phone, remote]}
+  stall_s: 15
+  steps:
+    - id: S01
+      name: Pick up the display
+      prompt: "Pick up the display unit."
+      voice: "Step one. Pick up the display unit."
+      require: [{in_hand: display}]
+      hold_s: 0.8
+      hint: "Pick up the phone or tablet in one hand."
+      expected_activity: GRASP_TOOL
+    - id: S02
+      name: Reading position
+      prompt: "Hold the display at eye level at reading distance."
+      voice: "Step two. Hold the display at eye level at reading distance."
+      require: [{near_face: display}]
+      hold_s: 1.5
+      hint: "Bring the phone up in front of your eyes, about a forearm's length away."
+      expected_activity: INSPECT_PAYLOAD
+    - id: S03
+      name: Two-hand operation
+      prompt: "Operate the display with both hands."
+      voice: "Step three. Operate the display with both hands."
+      require: [{both_hands_on: display}]
+      hold_s: 1.0
+      hint: "Hold the phone with both hands as if typing."
+      expected_activity: GRASP_TOOL
+    - id: S04
+      name: Stow the display
+      prompt: "Put the display down and release it."
+      voice: "Final step. Put the display down and release it."
+      require: [{not: {in_hand: display}}]
+      hold_s: 0.8
+      hint: "Place the phone on the table and move your hands away."
+      expected_activity: RELEASE_TOOL

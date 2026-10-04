@@ -1,0 +1,50 @@
+experiment:
+  id: NBP-1
+  title: "NBP-1 Neutral Body Posture and Rack Reach"
+  category: Human factors
+  inspired_by: "Gaganyaan crew ergonomics: microgravity neutral body posture measured against the rack"
+  rack_id: BENCH-RACK-01
+  props: "A printed or on-screen AprilTag (tag36h11, id 10) fixed upright on the 'rack' (wall or box face)"
+  objects: {}
+  stall_s: 15
+  steps:
+    - id: S01
+      name: Acquire rack frame
+      prompt: "Make sure the rack AprilTag and your upper body are both in view."
+      voice: "Step one. Show the rack tag and your upper body to the camera."
+      require: [{rack_frame: true}, {person: true}]
+      hold_s: 0.8
+      hint: "Open the Rack Tags page, print tag 10 or show it on a phone, and fix it upright on a wall or box behind you."
+      expected_activity: IDLE
+    - id: S02
+      name: Neutral posture
+      prompt: "Hold your body aligned with the rack's vertical axis."
+      voice: "Step two. Hold your body aligned with the rack's vertical axis."
+      require: [{upright: 15}]
+      hold_s: 1.5
+      hint: "Straighten up so your torso is parallel to the rack's up direction."
+      expected_activity: IDLE
+    - id: S03
+      name: Reach overhead panel
+      prompt: "Reach up to the overhead rack panel."
+      voice: "Step three. Reach up to the overhead rack panel."
+      require: [{hands_above_head: any}]
+      hold_s: 1.0
+      hint: "Raise one hand above your head."
+      expected_activity: REACH_TOOL
+    - id: S04
+      name: Lean to side panel
+      prompt: "Lean sideways toward the side panel, at least 25 degrees."
+      voice: "Step four. Lean sideways toward the side panel."
+      require: [{inclined: 25}]
+      hold_s: 1.0
+      hint: "Tilt your upper body to one side and hold."
+      expected_activity: APPROACH_PAYLOAD
+    - id: S05
+      name: Return to neutral
+      prompt: "Return to the neutral posture aligned with the rack."
+      voice: "Final step. Return to neutral posture."
+      require: [{upright: 15}, {not: {hands_above_head: any}}]
+      hold_s: 1.0
+      hint: "Straighten up and lower your arms."
+      expected_activity: RETURN_POSITION

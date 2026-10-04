@@ -22,3 +22,6 @@ reports/*
 .venv/
 venv/
 .env
+
+# Recorded training datasets (export via /api/dataset/download)
+data/

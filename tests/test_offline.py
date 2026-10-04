@@ -109,9 +109,10 @@ def test_the_only_outbound_path_is_the_configured_stream():
 
 
 def test_subprocess_use_is_limited_to_local_media_tools():
-    """ffmpeg for clip cutting and piper for speech, both local binaries. A
-    subprocess elsewhere in the package would be an unreviewed escape hatch."""
-    allowed = {"parikshak/io/clips.py", "parikshak/io/tts.py"}
+    """ffmpeg for clip cutting, piper for speech, nvidia-smi / the OS GPU query
+    for hardware detection - all local binaries. A subprocess elsewhere in the
+    package would be an unreviewed escape hatch."""
+    allowed = {"parikshak/io/clips.py", "parikshak/io/tts.py", "parikshak/zerog/hardware.py"}
     offences = []
     for src in sources():
         rel = src.relative_to(PKG.parent).as_posix()

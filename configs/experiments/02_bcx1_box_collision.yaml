@@ -1,0 +1,16 @@
+experiment:
+  id: BCX-1
+  engine: tuned
+  title: "BCX-1 Two-Box Collision in Container (Red & Yellow)"
+  category: Physical sciences
+  inspired_by: "Microgravity contact-dynamics / granular collision experiments"
+  rack_id: BENCH-1 (Glovebox)
+  props: "One larger container box, one red box, one yellow box"
+  objects: {red_box: [red_box], yellow_box: [yellow_box], container: [container]}
+  steps:
+    - {id: S01, name: Identify bigger container box, prompt: "Position and verify the outer container box in workspace view.", hint: "Place the open container box in the centre of the camera view against a plain background.", expected_activity: APPROACH_PAYLOAD}
+    - {id: S02, name: Detect and verify box colours, prompt: "Present the red box and the yellow box to the camera to verify colour detection.", hint: "Hold both coloured boxes up, apart from each other, with no fingers covering them.", expected_activity: INSPECT_PAYLOAD}
+    - {id: S03, name: Place red box into container, prompt: "Place the red box inside the container box.", hint: "Put only the red box into the container first.", expected_activity: PLACE_TOOL}
+    - {id: S04, name: Place yellow box into container, prompt: "Place the yellow box inside the container, separated from the red box.", hint: "Put the yellow box in the container with a visible gap from the red box.", expected_activity: PLACE_TOOL}
+    - {id: S05, name: Collide red and yellow boxes, prompt: "Bring the red and yellow boxes together inside the container until they collide.", hint: "Push the boxes together inside the container and hold them in contact.", expected_activity: MOVE_TOOL}
+    - {id: S06, name: Separate boxes and confirm, prompt: "Separate the boxes inside the container to conclude the trial.", hint: "Pull the boxes apart so a clear gap is visible.", expected_activity: RETURN_POSITION}

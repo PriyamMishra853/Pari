@@ -1,0 +1,17 @@
+experiment:
+  id: MOA-1
+  engine: tuned
+  title: "MOA-1 Multi-Object Crew Workstation Sequence"
+  category: Human factors
+  inspired_by: "Crew workstation ergonomics and task-sequence compliance"
+  rack_id: BENCH-1 (Workstation)
+  props: "A chair, a smartphone and a water bottle"
+  objects: {chair: [chair], phone: [cell phone], bottle: [bottle]}
+  steps:
+    - {id: S01, name: Pull chair into position, prompt: "Grasp the chair and pull it into position at your desk.", hint: "Pull the chair so it is clearly visible and moves into place.", expected_activity: MOVE_TOOL}
+    - {id: S02, name: Sit down on chair, prompt: "Sit down on the chair in an ergonomic posture.", hint: "Sit fully on the chair facing the camera.", expected_activity: IDLE}
+    - {id: S03, name: Pick up smartphone, prompt: "Pick up the smartphone from the desk.", hint: "Lift the phone off the desk with one hand.", expected_activity: GRASP_TOOL}
+    - {id: S04, name: Return smartphone to desk, prompt: "Place the smartphone back onto the desk surface.", hint: "Put the phone down on the desk and let go.", expected_activity: RELEASE_TOOL}
+    - {id: S05, name: Grasp and lift water bottle, prompt: "Grasp the water bottle and lift it off the desk.", hint: "Lift the bottle clearly above the desk.", expected_activity: GRASP_TOOL}
+    - {id: S06, name: Drink water from bottle, prompt: "Bring the water bottle to your mouth and drink water.", hint: "Bring the bottle to your lips and hold briefly.", expected_activity: DRINK}
+    - {id: S07, name: Return bottle and release hands, prompt: "Return the bottle to the table surface and release your hands.", hint: "Put the bottle down and move both hands away.", expected_activity: RELEASE_TOOL}

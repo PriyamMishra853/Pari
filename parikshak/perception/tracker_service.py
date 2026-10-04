@@ -1,502 +1,559 @@
-"""Service wrapper for YOLO & OpenCV experiment tracking.
+"""Experiment service: one place where a camera frame becomes telemetry.
 
-Manages video input sources (live client webcam, uploaded video files, and
-simulated runs) and coordinates frame processing and telemetry serialization.
+    frame (browser webcam / uploaded video)
+      -> ZeroGPipeline.begin   rack frame, 3D pose, upright view
+      -> procedure tracker     tuned (WBP-1, BCX-1, MOA-1) or YAML engine (others)
+      -> ZeroGPipeline.finish  3D objects, interaction graph, HAR, mesh, overlay
+      -> events -> flight copilot (spoken guidance, alerts, Groq reasoning)
+      -> dataset recorder (optional)
 """
 
 from __future__ import annotations
 
 import base64
 import math
-import os
+import re
 import threading
 import time
+from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
 try:
     import importlib
+
     cv2 = importlib.import_module("cv2")
-except ImportError:
+except ImportError:  # vision stack not installed: the engine still imports
     cv2 = None  # type: ignore
 import numpy as np
+import yaml
 
 from parikshak.perception.yolo_tracker import YoloExperimentTracker
+from parikshak.zerog.body import body_metrics
+from parikshak.zerog.colors import detect_color_boxes
+from parikshak.zerog.dataset import DatasetRecorder
+from parikshak.zerog.hardware import gpu_info, pose_backend_status, sam3d_status
+from parikshak.zerog.pipeline import ZeroGPipeline
+from parikshak.zerog.procedure import CUSTOM_DIR, PREDICATES, GenericTracker, describe, load_specs
 
-UPLOAD_DIR = Path("runs/uploads")
+ROOT = Path(__file__).resolve().parents[2]
+UPLOAD_DIR = ROOT / "runs" / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+TUNED = {"WBP-1", "BCX-1", "MOA-1"}
+STALL_S = 15.0
+
+
+def _angle(a: np.ndarray, b: np.ndarray, c: np.ndarray) -> float | None:
+    v1, v2 = a - b, c - b
+    n1, n2 = float(np.linalg.norm(v1)), float(np.linalg.norm(v2))
+    if n1 < 1e-6 or n2 < 1e-6:
+        return None
+    return math.degrees(math.acos(max(-1.0, min(1.0, float(np.dot(v1, v2) / (n1 * n2))))))
+
+
+def _tuned_checks(exp: str, step: str, tel: dict[str, Any]) -> tuple[list[str], list[str]]:
+    """Human-readable met / unmet checks for the hand-tuned trackers."""
+    g = tel.get("geometry", {})
+    st = tel.get("settle", {})
+    checks: list[tuple[str, bool]] = []
+    if exp == "WBP-1":
+        checks = {
+            "S01": [("water bottle visible", g.get("target_detected")), ("bottle resting on the table", g.get("in_table_zone"))],
+            "S02": [("bottle held in hand", g.get("hand_contact")), ("bottle lifted off the table", g.get("is_lifted"))],
+            "S03": [("bottle at the mouth", g.get("near_mouth")), ("drinking pose held", g.get("is_drinking_pose"))],
+            "S04": [("bottle back on the table", st.get("is_returned")), ("hands released from bottle", st.get("hands_released"))],
+        }.get(step, [])
+    elif exp == "BCX-1":
+        checks = {
+            "S01": [("outer container box detected", g.get("container_locked") or g.get("outer_box_detected"))],
+            "S02": [("red box visible", g.get("red_box_detected")), ("yellow box visible", g.get("yellow_box_detected"))],
+            "S03": [("red box inside the container", g.get("red_inside"))],
+            "S04": [("yellow box inside the container", g.get("yellow_inside")), ("boxes separated", not g.get("is_colliding"))],
+            "S05": [("boxes in contact", g.get("is_colliding")), ("both boxes inside", g.get("red_inside") and g.get("yellow_inside"))],
+            "S06": [("boxes separated", not g.get("is_colliding"))],
+        }.get(step, [])
+    else:
+        checks = [("crew member visible", g.get("person_detected"))]
+    return [n for n, ok in checks if ok], [n for n, ok in checks if not ok]
+
+
+class CopilotHub:
+    """Turns procedure events into spoken guidance; Groq calls run off the frame loop."""
+
+    def __init__(self) -> None:
+        from backend.app.groq.reasoning import CopilotReasoner
+
+        self.reasoner = CopilotReasoner()
+        self.feed: deque[dict[str, Any]] = deque(maxlen=80)
+        self.next_id = 1
+        self.pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="copilot")
+        self.lock = threading.Lock()
+        self.last_ai = 0.0
+        self.auto_ai = True
+
+    def post(self, kind: str, title: str, text: str, spoken: str | None = None, source: str = "local",
+             severity: str | None = None, latency_ms: float | None = None, extra: dict | None = None) -> dict[str, Any]:
+        with self.lock:
+            msg = {"id": self.next_id, "t": time.time(), "type": kind, "title": title, "text": text,
+                   "spoken": spoken, "source": source, "severity": severity, "latency_ms": latency_ms}
+            if extra:
+                msg.update(extra)
+            self.next_id += 1
+            self.feed.append(msg)
+            return msg
+
+    def since(self, after_id: int = 0) -> list[dict[str, Any]]:
+        with self.lock:
+            return [m for m in self.feed if m["id"] > after_id]
+
+    def clear(self) -> None:
+        with self.lock:
+            self.feed.clear()
+
+    def _async(self, fn, *args) -> None:
+        self.pool.submit(self._safe, fn, *args)
+
+    def _safe(self, fn, *args) -> None:
+        try:
+            fn(*args)
+        except Exception as exc:  # never let the copilot break tracking
+            self.post("system", "Copilot error", f"{type(exc).__name__}: {exc}", source="local")
+
+    # ----------------------------------------------------------- reactions
+    def on_events(self, events: list[dict[str, Any]], tel: dict[str, Any], spec: dict[str, Any] | None) -> None:
+        if not events:
+            return
+        from backend.app.groq.reasoning import experiment_state
+
+        steps = {s["id"]: s for s in tel.get("steps", [])}
+        spec_steps = {s.get("id"): s for s in (spec or {}).get("steps", [])}
+        completed = [e for e in events if e["type"] == "step_completed"]
+        started = [e for e in events if e["type"] == "step_started"]
+        for e in events:
+            if e["type"] == "alert":
+                self.post("alert", f"{e.get('severity', 'caution').upper()} - Step {e['step_id']}", e["message"],
+                          spoken=e.get("tts") or e["message"], severity=e.get("severity"), source="vision-rules")
+                if self.auto_ai and e.get("severity") in ("caution", "critical") and time.time() - self.last_ai > 6:
+                    self.last_ai = time.time()
+                    st = experiment_state(tel, spec, e)
+                    self._async(self._ai_alert, st, e)
+            elif e["type"] == "stalled":
+                st = experiment_state(tel, spec, e)
+                if self.auto_ai:
+                    self._async(self._ai_guidance, st)
+                else:
+                    g = self.reasoner._local_guidance(st)
+                    self.post("guide", f"Guidance - Step {e['step_id']}", g["display"], spoken=g["spoken"], source="local-rules")
+            elif e["type"] == "procedure_complete":
+                st = experiment_state(tel, spec, e)
+                self._async(self._ai_summary, st)
+        if started:
+            e = started[-1]
+            sp = spec_steps.get(e["step_id"], {})
+            prefix = f"Step {completed[-1]['step_id'][1:].lstrip('0')} verified. " if completed else ""
+            voice = sp.get("voice") or f"Next, {steps.get(e['step_id'], {}).get('prompt', e.get('prompt', ''))}"
+            self.post("guide", f"Next: {e['step_id']} {e.get('name', '')}",
+                      steps.get(e["step_id"], {}).get("prompt", e.get("prompt", "")),
+                      spoken=(prefix + voice).strip(), source="procedure")
+
+    def _ai_alert(self, st, e) -> None:
+        r = self.reasoner.explain_alert(st, e)
+        self.post("ai", f"Recovery - Step {e['step_id']}", r.get("display", ""), spoken=r.get("spoken"),
+                  source=r.get("source", "?"), severity=e.get("severity"), latency_ms=r.get("latency_ms"))
+
+    def _ai_guidance(self, st) -> None:
+        r = self.reasoner.guidance(st)
+        s = st.get("active_step") or {}
+        self.post("guide", f"Stuck on step {s.get('id', '')}? Guidance", r.get("display", ""), spoken=r.get("spoken"),
+                  source=r.get("source", "?"), latency_ms=r.get("latency_ms"), extra={"checks": r.get("checks", [])})
+
+    def _ai_summary(self, st) -> None:
+        r = self.reasoner.summary(st)
+        self.post("ai", "Procedure summary", r.get("display", ""), spoken=r.get("spoken"),
+                  source=r.get("source", "?"), latency_ms=r.get("latency_ms"))
 
 
 class TrackerService:
-    """Singleton-style coordinator for live and replay experiment tracking."""
-
     def __init__(self, experiment_id: str = "WBP-1") -> None:
         self.lock = threading.RLock()
-        self.experiment_id = experiment_id
-        self.tracker = YoloExperimentTracker(self.experiment_id)
-        from parikshak.perception.rack_gravity import get_rack_hmr
-        self.rack_hmr = get_rack_hmr()
-        self.toggles = {
-            "show_mesh": True,
-            "show_skeleton": True,
-            "show_joints": True,
-            "show_rack_axes": True,
-            "show_interactions": True,
-        }
+        self.pipeline = ZeroGPipeline()
+        self.yolo = YoloExperimentTracker("WBP-1")
+        self.yolo.render_hud = False
+        self.yolo.external_pose_mode = True
+        self.specs = load_specs()
+        self.generic: GenericTracker | None = None
+        self.copilot = CopilotHub()
+        self.dataset = DatasetRecorder()
+        self._det_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="yolo")
+        self.toggles = {"show_mesh": True, "show_skeleton": True, "show_joints": True,
+                        "show_rack_axes": True, "show_interactions": True}
         self.video_cap: Any | None = None
         self.active_video_path: str | None = None
-        self.is_video_playing = False
+        self.video_fps = 25.0
+        self.video_t0: float | None = None
+        self.video_pos0 = 0
         self.last_telemetry: dict[str, Any] = {}
+        self._prev_steps: dict[str, str] = {}
+        self._prev_alert_ts = 0.0
+        self._prev_complete = False
+        self._progress_sig: tuple | None = None
+        self._last_progress_t = time.time()
+        self._last_stall_t = 0.0
+        self.experiment_id = "WBP-1"
+        self.set_experiment(experiment_id)
+
+    # --------------------------------------------------------------- basics
+    @property
+    def tracker(self):
+        return self.generic if self.generic is not None else self.yolo
+
+    @property
+    def spec(self) -> dict[str, Any] | None:
+        return self.specs.get(self.experiment_id)
 
     def set_toggles(self, new_toggles: dict[str, bool]) -> dict[str, bool]:
         with self.lock:
-            self.toggles.update(new_toggles)
-            return self.toggles
+            self.toggles.update({k: bool(v) for k, v in new_toggles.items()})
+            return dict(self.toggles)
 
-    def set_camera_rotation(self, angle_deg: float) -> float:
-        with self.lock:
-            return self.rack_hmr.set_camera_rotation(angle_deg)
-
-    def get_rotation_test_telemetry(self) -> dict[str, Any]:
-        with self.lock:
-            angle = self.rack_hmr.simulated_camera_angle
-            # Compute camera coords vs invariant rack coords for telemetry
-            p_rack_true = np.array([0.45, 0.35, 0.40])
-            p_cam = np.array([
-                -0.15 * math.cos(math.radians(angle)) + 0.15 * math.sin(math.radians(angle)),
-                -0.15 * math.sin(math.radians(angle)) - 0.15 * math.cos(math.radians(angle)),
-                -0.80
-            ])
-            return {
-                "camera_orientation_deg": angle,
-                "rack_frame_status": "LOCKED",
-                "camera_coordinates": [round(float(v), 3) for v in p_cam],
-                "rack_coordinates": [round(float(v), 3) for v in p_rack_true],
-                "invariance_status": "STABLE_INVARIANT",
-                "activity": self.last_telemetry.get("rack_hmr", {}).get("activity", "INSPECT_PAYLOAD"),
-                "confidence": 0.94,
-            }
-
-    def _apply_rack_hmr(self, annotated: np.ndarray, telemetry: dict[str, Any]) -> tuple[np.ndarray, dict[str, Any]]:
-        try:
-            skel = telemetry.get("skeleton", {})
-            step_id = telemetry.get("step_id", "S01")
-            state = self.rack_hmr.evaluate_rack_pose(
-                skeleton_data=skel,
-                active_step_id=step_id,
-            )
-            annotated = self.rack_hmr.render_rack_overlays(
-                annotated,
-                state,
-                show_mesh=self.toggles.get("show_mesh", True),
-                show_skeleton=self.toggles.get("show_skeleton", True),
-                show_joints=self.toggles.get("show_joints", True),
-                show_rack_axes=self.toggles.get("show_rack_axes", True),
-                show_interactions=self.toggles.get("show_interactions", True),
-            )
-            telemetry["rack_hmr"] = self.rack_hmr.to_dict(state)
-        except Exception:
-            pass
-        return annotated, telemetry
+    def _reset_event_state(self) -> None:
+        self._prev_steps, self._prev_alert_ts, self._prev_complete = {}, 0.0, False
+        self._progress_sig, self._last_progress_t, self._last_stall_t = None, time.time(), 0.0
 
     def set_experiment(self, experiment_id: str) -> dict[str, Any]:
         with self.lock:
-            self.experiment_id = experiment_id.upper()
-            self.tracker = YoloExperimentTracker(self.experiment_id)
-            # Process empty frame to prime telemetry
-            dummy = np.zeros((480, 640, 3), dtype=np.uint8)
-            annotated, self.last_telemetry = self.tracker.process_frame(dummy)
-            _, self.last_telemetry = self._apply_rack_hmr(annotated, self.last_telemetry)
+            self.specs = load_specs()
+            exp = experiment_id.upper()
+            if exp not in self.specs and exp not in TUNED:
+                exp = "WBP-1"
+            self.experiment_id = exp
+            if exp in TUNED:
+                self.generic = None
+                self.yolo.init_procedure(exp)
+            else:
+                self.generic = GenericTracker(self.specs[exp], self.yolo.det_model)
+            self.pipeline.reset()
+            self.copilot.clear()
+            self._reset_event_state()
+            first = (self.spec or {}).get("steps", [{}])[0]
+            self.copilot.post("guide", f"{exp} loaded - Step {first.get('id', 'S01')}", first.get("prompt", ""),
+                              spoken=f"{(self.spec or {}).get('title', exp)} loaded. "
+                                     + (first.get("voice") or f"Step one. {first.get('prompt', '')}"),
+                              source="procedure")
+            self.last_telemetry = self._idle_telemetry()
             return self.last_telemetry
 
     def reset(self) -> dict[str, Any]:
         with self.lock:
-            self.tracker.reset()
-            if hasattr(self, "rack_hmr") and self.rack_hmr is not None:
-                self.rack_hmr.simulated_camera_angle = 0.0
+            if self.generic is not None:
+                self.generic.reset()
+            else:
+                self.yolo.reset()
+            self.pipeline.reset()
+            self._reset_event_state()
             if self.video_cap is not None:
                 self.video_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-            dummy = np.zeros((480, 640, 3), dtype=np.uint8)
-            annotated, self.last_telemetry = self.tracker.process_frame(dummy)
-            _, self.last_telemetry = self._apply_rack_hmr(annotated, self.last_telemetry)
+                self.video_t0, self.video_pos0 = None, 0
+            self.copilot.post("system", "Procedure restarted", "All steps reset to pending.", source="procedure")
+            self.last_telemetry = self._idle_telemetry()
             return self.last_telemetry
 
-    def reset_tracker(self) -> dict[str, Any]:
-        return self.reset()
+    reset_tracker = reset
+
+    def _idle_telemetry(self) -> dict[str, Any]:
+        spec = self.spec or {}
+        steps = [{"id": s.get("id"), "name": s.get("name"), "prompt": s.get("prompt"),
+                  "status": "active" if i == 0 else "pending", "elapsed_s": 0.0, "is_verifying": False,
+                  "verification_pct": 0, "expected_activity": s.get("expected_activity")}
+                 for i, s in enumerate(spec.get("steps", []))]
+        first = steps[0] if steps else {}
+        return {
+            "experiment_id": self.experiment_id, "experiment_title": spec.get("title", self.experiment_id),
+            "rack_id": spec.get("rack_id", ""), "active_step_id": first.get("id", "S01"),
+            "active_step_name": first.get("name", ""), "prompt": first.get("prompt", ""),
+            "hint": (spec.get("steps") or [{}])[0].get("hint", ""), "unmet": [], "met": [],
+            "compliance_score": 0, "is_complete": False, "steps": steps, "recent_alert": None,
+            "alert_count": 0, "alerts": [], "feed": self.copilot.since(0), "zerog": None, "events": [],
+            "dataset": self.dataset.status(),
+        }
 
     def get_telemetry(self) -> dict[str, Any]:
         with self.lock:
-            if not self.last_telemetry:
-                dummy = np.zeros((480, 640, 3), dtype=np.uint8)
-                annotated, self.last_telemetry = self.tracker.process_frame(dummy)
-                _, self.last_telemetry = self._apply_rack_hmr(annotated, self.last_telemetry)
-            return dict(self.last_telemetry)
+            tel = dict(self.last_telemetry or self._idle_telemetry())
+            tel["feed"] = self.copilot.since(0)
+            return tel
 
-    def process_client_frame(self, b64_data: str) -> dict[str, Any]:
-        return self.process_b64_frame(b64_data)
-
+    # ------------------------------------------------------------ experiments
     def get_experiments_list(self) -> dict[str, Any]:
-        experiments = [
-            {
-                "id": "BCX-1",
-                "name": "ISRO Sample Experiment: Two-Box Color Verification (Red & Yellow)",
-                "description": "Outer container tray with two nested colored boxes; verify color detection, orientation-agnostic extraction, and stowage.",
-                "rack": "PAYLOAD-RACK-01",
-                "steps_count": 6,
-            },
-            {
-                "id": "WBP-1",
-                "name": "Water Bottle Protocol (Activity Benchmark)",
-                "description": "Baseline 4-step bottle inspection, grasp & lift, zero-g consumption, and return.",
-                "rack": "BENCH-1",
-                "steps_count": 4,
-            },
-            {
-                "id": "CRX-2",
-                "name": "CRX-2: Colloid Resuspension and Cold Return",
-                "description": "Microgravity colloid sample agitation, optical density check, and cold storage latching.",
-                "rack": "MSG-A (Space Station Rack)",
-                "steps_count": 4,
-            },
-            {
-                "id": "MOA-1",
-                "name": "Multi-Object Activity Sequence",
-                "description": "Sequential multi-object interaction across payload tools and containers.",
-                "rack": "PAYLOAD-RACK-02",
-                "steps_count": 7,
-            },
-        ]
-        return {
-            "experiments": experiments,
-            "active_experiment_id": self.experiment_id,
-        }
+        self.specs = load_specs()
+        out = []
+        for eid, s in self.specs.items():
+            out.append({
+                "id": eid, "name": s.get("title", eid), "title": s.get("title", eid),
+                "category": s.get("category", "Custom" if s.get("custom") else ""),
+                "inspired_by": s.get("inspired_by", ""), "props": s.get("props", ""),
+                "rack": s.get("rack_id", ""), "steps_count": len(s.get("steps", [])),
+                "engine": "tuned" if eid in TUNED else "procedure-yaml", "custom": bool(s.get("custom")),
+                "steps": [{"id": st.get("id"), "name": st.get("name"), "prompt": st.get("prompt")} for st in s.get("steps", [])],
+            })
+        return {"experiments": out, "active_experiment_id": self.experiment_id}
 
-    def process_b64_frame(self, b64_data: str) -> dict[str, Any]:
-        """Accepts base64 encoded JPEG/PNG frame from browser webcam, processes it
-        with YOLO, applies Zero-G Rack HMR, and returns the annotated frame and telemetry.
-        """
-        # Strip header if present: 'data:image/jpeg;base64,...'
+    def create_custom_experiment(self, data: dict[str, Any]) -> dict[str, Any]:
+        title = str(data.get("title", "")).strip() or "Custom procedure"
+        slug = re.sub(r"[^A-Z0-9]+", "", title.upper())[:6] or "EXP"
+        exp_id = f"CUS-{slug}{time.strftime('%H%M%S')[-4:]}"
+        objects = {}
+        for alias, classes in (data.get("objects") or {}).items():
+            a = re.sub(r"[^a-z0-9_]+", "_", str(alias).lower()).strip("_")
+            cl = [classes] if isinstance(classes, str) else list(classes)
+            if a and cl:
+                objects[a] = [str(c) for c in cl]
+        known = set(self.yolo.det_model.names.values()) | {"red_box", "yellow_box"}
+        bad_cls = [c for cl in objects.values() for c in cl if c not in known]
+        if bad_cls:
+            return {"error": f"Unknown object classes: {bad_cls}. Use YOLO/COCO class names or red_box / yellow_box."}
+        steps = []
+        for i, s in enumerate(data.get("steps") or []):
+            req = s.get("require") or []
+            for p in req:
+                k = next(iter(p))
+                inner = p[k] if k == "not" else p
+                kk = next(iter(inner))
+                if kk not in PREDICATES:
+                    return {"error": f"Step {i + 1}: unknown check '{kk}'."}
+                arg = inner[kk]
+                for a in (arg if isinstance(arg, list) else [arg]):
+                    if isinstance(a, str) and kk not in ("hands_above_head", "wrist_above_shoulder", "elbow_flexed",
+                                                         "arms_extended") and a not in objects:
+                        return {"error": f"Step {i + 1}: '{a}' is not one of the experiment's objects {list(objects)}."}
+            name = str(s.get("name", f"Step {i + 1}")).strip() or f"Step {i + 1}"
+            steps.append({
+                "id": f"S{i + 1:02d}", "name": name, "prompt": str(s.get("prompt") or name),
+                "voice": str(s.get("voice") or f"Step {i + 1}. {s.get('prompt') or name}"),
+                "require": req, "hold_s": float(s.get("hold_s", 0.8)),
+                "hint": str(s.get("hint") or ""), "expected_activity": s.get("expected_activity") or None,
+                "forbid": s.get("forbid") or [],
+            })
+        if not steps:
+            return {"error": "Add at least one step."}
+        spec = {"experiment": {
+            "id": exp_id, "title": title, "category": str(data.get("category") or "Custom"),
+            "inspired_by": str(data.get("inspired_by") or "User-defined procedure"),
+            "props": str(data.get("props") or ", ".join(sorted({c for cl in objects.values() for c in cl}))),
+            "rack_id": "PAYLOAD-RACK", "objects": objects, "stall_s": 15, "steps": steps,
+            "author": str(data.get("author") or "crew"), "created": time.strftime("%Y-%m-%d %H:%M:%S"),
+        }}
+        CUSTOM_DIR.mkdir(parents=True, exist_ok=True)
+        path = CUSTOM_DIR / f"{exp_id}.yaml"
+        path.write_text(yaml.safe_dump(spec, sort_keys=False, allow_unicode=True), encoding="utf-8")
+        self.specs = load_specs()
+        return {"status": "CREATED", "experiment_id": exp_id, "path": str(path),
+                "steps": [{"id": s["id"], "name": s["name"], "checks": [describe(p) for p in s["require"]]} for s in steps]}
+
+    def object_classes(self) -> list[str]:
+        return sorted(set(self.yolo.det_model.names.values()) | {"red_box", "yellow_box"})
+
+    # --------------------------------------------------------------- frames
+    def process_b64_frame(self, b64_data: str, include_frame: bool = False) -> dict[str, Any]:
         if "," in b64_data:
             b64_data = b64_data.split(",", 1)[1]
-
         try:
-            raw_bytes = base64.b64decode(b64_data)
-            np_arr = np.frombuffer(raw_bytes, np.uint8)
-            frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-            if frame is None:
-                return {"error": "Invalid image data"}
+            frame = cv2.imdecode(np.frombuffer(base64.b64decode(b64_data), np.uint8), cv2.IMREAD_COLOR)
         except Exception as exc:
             return {"error": f"Failed to decode image: {exc}"}
+        if frame is None:
+            return {"error": "Invalid image data"}
+        tel = self.process_frame(frame, time.time())
+        return {"telemetry": tel}
 
+    process_client_frame = process_b64_frame
+
+    @staticmethod
+    def _detections(res, names, wanted: set[str] | None) -> list[dict[str, Any]]:
+        out = []
+        if res is None:
+            return out
+        for b in res.boxes:
+            cls = names[int(b.cls[0])]
+            conf = float(b.conf[0])
+            if conf < 0.25 or (wanted is not None and cls not in wanted):
+                continue
+            out.append({"cls": cls, "conf": round(conf, 3), "box": [float(v) for v in b.xyxy[0].tolist()]})
+        return out
+
+    def _pose_dict(self, ctx) -> dict[str, Any]:
+        obs, vt = ctx.obs, ctx.vt
+        if obs is None:
+            # BlazePose found nobody: fall back to YOLO-pose 2D keypoints in the view
+            sk = self.yolo._extract_full_body_skeleton(ctx.view, ctx.t, 0.1, False) if self.generic is not None else None
+            if not sk or not sk.get("detected"):
+                return {"detected": False}
+            kp = {k["name"]: (k["x"], k["y"], k["conf"]) for k in sk["keypoints"]}
+            ok = lambda n: kp.get(n) and kp[n][2] >= 0.3  # noqa: E731
+            sw = math.hypot(kp["left_shoulder"][0] - kp["right_shoulder"][0], kp["left_shoulder"][1] - kp["right_shoulder"][1]) \
+                if ok("left_shoulder") and ok("right_shoulder") else 120.0
+            pd = {"detected": True, "source": "yolo-pose", "shoulder_px": max(sw, 40.0),
+                  "nose": kp["nose"][:2] if ok("nose") else None,
+                  "mouth": (kp["nose"][0], kp["nose"][1] + 0.25 * sw) if ok("nose") else None,
+                  "hands": [kp[n][:2] for n in ("left_wrist", "right_wrist") if ok(n)],
+                  "wrists": {s: (kp[f"{s}_wrist"][:2] if ok(f"{s}_wrist") else None) for s in ("left", "right")},
+                  "shoulders": {s: (kp[f"{s}_shoulder"][:2] if ok(f"{s}_shoulder") else None) for s in ("left", "right")},
+                  "elbow_deg": {}}
+            for s in ("left", "right"):
+                if ok(f"{s}_shoulder") and ok(f"{s}_elbow") and ok(f"{s}_wrist"):
+                    pd["elbow_deg"][s] = _angle(np.array(kp[f"{s}_shoulder"][:2]), np.array(kp[f"{s}_elbow"][:2]),
+                                                np.array(kp[f"{s}_wrist"][:2]))
+                else:
+                    pd["elbow_deg"][s] = None
+            sh = [p for p in pd["shoulders"].values() if p is not None]
+            pd["shoulder_y"] = float(np.mean([p[1] for p in sh])) if sh else None
+            return pd
+        pv = vt.raw_to_view(obs.px)
+        V, W = obs.vis, obs.world
+        hands = []
+        for w, i, p in ((15, 19, 17), (16, 20, 18)):
+            if V[w] >= 0.4:
+                hands.append(tuple(pv[[w, i, p]].mean(0)))
+        sw = float(np.linalg.norm(pv[11] - pv[12]))
+        pd = {
+            "detected": True, "source": "blazepose", "hands": hands,
+            "mouth": tuple(pv[[9, 10]].mean(0)) if min(V[9], V[10]) >= 0.3 else None,
+            "nose": tuple(pv[0]) if V[0] >= 0.3 else None,
+            "shoulder_px": max(sw, 40.0), "shoulder_y": float(pv[[11, 12], 1].mean()),
+            "wrists": {"left": tuple(pv[15]) if V[15] >= 0.4 else None, "right": tuple(pv[16]) if V[16] >= 0.4 else None},
+            "shoulders": {"left": tuple(pv[11]) if V[11] >= 0.4 else None, "right": tuple(pv[12]) if V[12] >= 0.4 else None},
+            "elbow_deg": {
+                "left": _angle(W[11], W[13], W[15]) if min(V[11], V[13], V[15]) >= 0.4 else None,
+                "right": _angle(W[12], W[14], W[16]) if min(V[12], V[14], V[16]) >= 0.4 else None,
+            },
+        }
+        return pd
+
+    def _run_det(self, view: np.ndarray, _k: int = 0):
+        t0 = time.perf_counter()
+        res = self.yolo.det_model(view, imgsz=320, verbose=False)[0]
+        return res, (time.perf_counter() - t0) * 1000.0
+
+    def _detect_view(self, ctx) -> tuple[Any, float]:
+        """Result of the detection started on the predicted view, or a fresh run
+        when the pose model chose a different orientation."""
+        if ctx.early is not None:
+            k_pred, _, fut = ctx.early
+            res, ms = fut.result()
+            if k_pred == ctx.vt.k:
+                return res, ms
+        return self._run_det(ctx.view)
+
+    def process_frame(self, raw: np.ndarray, t: float) -> dict[str, Any]:
         with self.lock:
-            annotated, telemetry = self.tracker.process_frame(frame)
-            annotated, telemetry = self._apply_rack_hmr(annotated, telemetry)
-            self.last_telemetry = telemetry
-
-            # Re-encode annotated frame to JPEG base64
-            _, buffer = cv2.imencode(".jpg", annotated, [cv2.IMWRITE_JPEG_QUALITY, 80])
-            out_b64 = "data:image/jpeg;base64," + base64.b64encode(buffer).decode("ascii")
-
-            return {
-                "annotated_frame": out_b64,
-                "telemetry": telemetry,
-            }
-
-
-    def load_video_file(self, video_path: str | Path) -> dict[str, Any]:
-        with self.lock:
-            path_str = str(video_path)
-            if not os.path.exists(path_str):
-                return {"error": f"Video file not found: {path_str}"}
-
-            if self.video_cap is not None:
-                self.video_cap.release()
-
-            self.video_cap = cv2.VideoCapture(path_str)
-            self.active_video_path = path_str
-            total_frames = int(self.video_cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            fps = float(self.video_cap.get(cv2.CAP_PROP_FPS) or 25.0)
-            self.tracker.reset()
-
-            return {
-                "status": "loaded",
-                "video_path": path_str,
-                "total_frames": total_frames,
-                "fps": fps,
-                "duration_s": round(total_frames / fps, 1) if fps > 0 else 0,
-            }
-
-    def get_next_video_frame(self) -> dict[str, Any]:
-        with self.lock:
-            if self.video_cap is None or not self.video_cap.isOpened():
-                return {"error": "No video opened"}
-
-            ret, frame = self.video_cap.read()
-            if not ret:
-                # Loop back or signal EOF
-                self.video_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                ret, frame = self.video_cap.read()
-                if not ret:
-                    return {"is_eof": True}
-
-            current_pos = int(self.video_cap.get(cv2.CAP_PROP_POS_FRAMES))
-            total_frames = int(self.video_cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
-            annotated, telemetry = self.tracker.process_frame(frame)
-            annotated, telemetry = self._apply_rack_hmr(annotated, telemetry)
-            self.last_telemetry = telemetry
-
-            _, buffer = cv2.imencode(".jpg", annotated, [cv2.IMWRITE_JPEG_QUALITY, 80])
-            out_b64 = "data:image/jpeg;base64," + base64.b64encode(buffer).decode("ascii")
-
-            return {
-                "annotated_frame": out_b64,
-                "telemetry": telemetry,
-                "frame_pos": current_pos,
-                "total_frames": total_frames,
-                "is_eof": False,
-            }
-
-    def list_available_cameras(self) -> list[dict[str, Any]]:
-        cameras = []
-        for idx in [1, 0]:
-            try:
-                cap = cv2.VideoCapture(idx, cv2.CAP_DSHOW)
-                if cap.isOpened():
-                    ret, frame = cap.read()
-                    mean_val = float(np.mean(frame)) if ret and frame is not None else 0.0
-                    is_physical = (idx == 1 or mean_val > 15.0)
-                    name = f"HP HD Camera (Physical Webcam - Index {idx})" if is_physical else f"Virtual / Aux Camera (Index {idx})"
-                    cameras.append({
-                        "index": idx,
-                        "name": name,
-                        "is_physical": is_physical,
-                        "mean_brightness": round(mean_val, 1),
-                    })
-                    cap.release()
-            except Exception:
-                pass
-        return cameras
-
-    def start_local_camera(self, camera_idx: int = -1) -> dict[str, Any]:
-        with self.lock:
-            if self.video_cap is not None:
-                try:
-                    self.video_cap.release()
-                except Exception:
-                    pass
-                self.video_cap = None
-
-            # Prioritize candidate indices:
-            # If camera_idx specified and >= 0, check that requested index first.
-            # If camera_idx < 0 (auto), prioritize index 1 (HP HD Camera) before index 0 (EShare Virtual Camera)
-            if camera_idx is not None and camera_idx >= 0:
-                candidates = [camera_idx, 1, 0]
+            t_start = time.perf_counter()
+            if raw.shape[1] != 640 or raw.shape[0] != 480:
+                raw = cv2.resize(raw, (640, 480))
+            pl = self.pipeline
+            spec = self.spec or {}
+            if self.generic is None:
+                need_det = self.experiment_id != "BCX-1"  # BCX-1 is colour-based; YOLO is not needed
             else:
-                candidates = [1, 0]
+                need_det = bool(self.generic.wanted_classes() - {"red_box", "yellow_box"})
+            launch = (lambda v, k: self._det_pool.submit(self._run_det, v, k)) if need_det else None
+            ctx = pl.begin(raw, t, on_predicted_view=launch)
+            view = ctx.view
+            expected = sorted({c for cl in (spec.get("objects") or {}).values() for c in (cl if isinstance(cl, list) else [cl])})
 
-            selected_cap = None
-            selected_idx = 1
-
-            for idx in candidates:
-                try:
-                    temp_cap = cv2.VideoCapture(idx, cv2.CAP_DSHOW)
-                    if temp_cap.isOpened():
-                        temp_cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-                        temp_cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-                        # Warm up 2 frames
-                        for _ in range(2):
-                            temp_cap.read()
-                        ret, test_frame = temp_cap.read()
-                        mean_val = float(np.mean(test_frame)) if ret and test_frame is not None else 0.0
-
-                        # If this camera has a real non-black image (brightness > 8.0), it is our physical camera!
-                        if mean_val > 8.0:
-                            selected_cap = temp_cap
-                            selected_idx = idx
-                            break
-
-                        # Fallback if no bright camera found yet
-                        if selected_cap is None:
-                            selected_cap = temp_cap
-                            selected_idx = idx
-                        else:
-                            temp_cap.release()
-                except Exception:
-                    continue
-
-            if selected_cap is None or not selected_cap.isOpened():
-                return {"error": "Failed to open hardware camera. Please check webcam connection or Windows camera privacy settings."}
-
-            self.video_cap = selected_cap
-            self.is_video_playing = True
-            return {"status": "camera_started", "camera_index": selected_idx}
-
-    def stop_local_camera(self) -> dict[str, Any]:
-        with self.lock:
-            if self.video_cap is not None:
-                try:
-                    self.video_cap.release()
-                except Exception:
-                    pass
-                self.video_cap = None
-            self.is_video_playing = False
-            return {"status": "camera_stopped"}
-
-    def get_camera_frame_mjpeg(self) -> bytes | None:
-        with self.lock:
-            if self.video_cap is None or not self.video_cap.isOpened():
-                res = self.start_local_camera(-1)
-                if "error" in res or self.video_cap is None:
-                    return None
-            ret = False
-            frame = None
-            for _ in range(3):
-                ret, temp = self.video_cap.read()
-                if ret and temp is not None and temp.size > 0:
-                    frame = temp
-                    break
-                time.sleep(0.01)
-            if not ret or frame is None:
-                return None
-            h, w = frame.shape[:2]
-            if w != 640 or h != 480:
-                frame = cv2.resize(frame, (640, 480))
-            annotated, telemetry = self.tracker.process_frame(frame)
-            annotated, telemetry = self._apply_rack_hmr(annotated, telemetry)
-            self.last_telemetry = telemetry
-            ret, jpeg = cv2.imencode(".jpg", annotated, [cv2.IMWRITE_JPEG_QUALITY, 75])
-            if not ret:
-                return None
-            return jpeg.tobytes()
-
-    def get_camera_frame_b64(self) -> dict[str, Any]:
-        with self.lock:
-            if self.video_cap is None or not self.video_cap.isOpened():
-                res = self.start_local_camera(0)
-                if "error" in res or self.video_cap is None:
-                    return {"error": res.get("error", "Hardware camera not accessible")}
-            ret = False
-            frame = None
-            for _ in range(4):
-                ret, temp = self.video_cap.read()
-                if ret and temp is not None and temp.size > 0:
-                    frame = temp
-                    break
-                time.sleep(0.015)
-
-            if not ret or frame is None:
-                return {"error": "Failed to read frame from hardware camera. Please ensure webcam is not in use by another app."}
-
-            h, w = frame.shape[:2]
-            if w != 640 or h != 480:
-                frame = cv2.resize(frame, (640, 480))
-
-            annotated, telemetry = self.tracker.process_frame(frame)
-            annotated, telemetry = self._apply_rack_hmr(annotated, telemetry)
-            self.last_telemetry = telemetry
-            ret, buffer = cv2.imencode(".jpg", annotated, [cv2.IMWRITE_JPEG_QUALITY, 75])
-            if not ret:
-                return {"error": "Failed to encode frame"}
-            out_b64 = "data:image/jpeg;base64," + base64.b64encode(buffer).decode("ascii")
-            return {
-                "annotated_frame": out_b64,
-                "telemetry": telemetry,
-                "status": "camera_live",
-            }
-
-    def generate_demo_video(self, output_path: str = "runs/uploads/demo_bottle_run.mp4") -> str:
-        """Generates a synthetic realistic demonstration video for instant test
-
-
-        and verification if the user doesn't have an MP4 file handy.
-        """
-        out_p = Path(output_path)
-        out_p.parent.mkdir(parents=True, exist_ok=True)
-
-        w, h = 640, 480
-        fps = 20
-        total_frames = fps * 15  # 15 seconds
-
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        writer = cv2.VideoWriter(str(out_p), fourcc, fps, (w, h))
-
-        # Bottle starting position
-        table_y = int(h * 0.75)
-        bottle_w, bottle_h = 50, 140
-
-        for f in range(total_frames):
-            frame = np.full((h, w, 3), (25, 30, 40), dtype=np.uint8)
-
-            # Draw lab desk surface
-            cv2.rectangle(frame, (0, table_y), (w, h), (40, 50, 65), -1)
-            cv2.line(frame, (0, table_y), (w, table_y), (80, 100, 130), 2)
-
-            # Astronaut / Person head & body outline
-            person_x = int(w * 0.5)
-            person_y = int(h * 0.3)
-            # Head
-            cv2.circle(frame, (person_x, person_y), 50, (190, 170, 160), -1)
-            # Eyes & mouth
-            cv2.circle(frame, (person_x - 15, person_y - 5), 4, (40, 40, 40), -1)
-            cv2.circle(frame, (person_x + 15, person_y - 5), 4, (40, 40, 40), -1)
-            cv2.line(frame, (person_x - 12, person_y + 22), (person_x + 12, person_y + 22), (40, 40, 40), 2)
-            # Body suit
-            cv2.ellipse(frame, (person_x, person_y + 160), (100, 120), 0, 0, 360, (210, 220, 230), -1)
-
-            # Motion sequence over 15 seconds:
-            # 0-3s: S01 bottle on table, hand approaches
-            # 3-6s: S02 hand grasps and lifts bottle upward
-            # 6-10s: S03 bottle brought to mouth, drinking action held
-            # 10-14s: S04 bottle returned to table and released
-            t = f / fps
-
-            if t < 3.0:
-                # Idle on table
-                bx = int(w * 0.6)
-                by = table_y - bottle_h
-                hand_x = int(w * 0.8 - (t / 3.0) * 80)
-                hand_y = table_y - 30
-            elif t < 6.0:
-                # Lifting
-                p = (t - 3.0) / 3.0
-                bx = int(w * 0.6 - p * 40)
-                by = int((table_y - bottle_h) - p * 120)
-                hand_x = bx + 20
-                hand_y = by + 60
-            elif t < 10.0:
-                # Drinking at mouth
-                bx = person_x + 20
-                by = person_y + 10
-                hand_x = bx + 20
-                hand_y = by + 50
+            if self.generic is None:
+                tr = self.yolo
+                tr.external_pose = pl.coco17_for_view(ctx)
+                det_ms = 0.0
+                if need_det:
+                    tr.injected_det, det_ms = self._detect_view(ctx)
+                _, tel = tr.process_frame(view, t)
+                tr.injected_det = None
+                overlay_objs = list(tr.overlay_objects)
+                skel_view = tel.get("geometry", {}).get("skeleton") if ctx.obs is None else None
+                met, unmet = _tuned_checks(self.experiment_id, tel.get("active_step_id", ""), tel)
+                tel["met"], tel["unmet"] = met, unmet
+                sp = next((s for s in spec.get("steps", []) if s.get("id") == tel.get("active_step_id")), {})
+                tel["hint"] = sp.get("hint", "")
+                tel["alerts"] = [{"step_id": a.step_id, "severity": a.severity, "kind": a.kind, "message": a.message,
+                                  "timestamp": a.timestamp} for a in tr.alerts[-20:]]
+                tel["engine"] = "tuned"
             else:
-                # Returning to table
-                p = (t - 10.0) / 4.0
-                p = min(1.0, p)
-                bx = int((person_x + 20) + p * 80)
-                by = int((person_y + 10) + p * (table_y - bottle_h - (person_y + 10)))
-                hand_x = int(bx + 20 + p * 80)
-                hand_y = int(by + 50)
+                g = self.generic
+                wanted = g.wanted_classes()
+                yolo_wanted = wanted - {"red_box", "yellow_box"}
+                det_ms = 0.0
+                dets: list[dict[str, Any]] = []
+                if yolo_wanted:
+                    res, det_ms = self._detect_view(ctx)
+                    dets = self._detections(res, self.yolo.det_model.names, yolo_wanted)
+                if wanted & {"red_box", "yellow_box"}:
+                    dets += detect_color_boxes(view, wanted)
+                pose = self._pose_dict(ctx)
+                body = body_metrics(ctx.obs, ctx.rack) if (ctx.obs is not None and ctx.obs.cam is not None) else {}
+                tel = g.process(view, t, pose, body, ctx.rack.valid, dets)
+                overlay_objs = list(g.overlay_objects)
+                skel_view = None
 
-            # Draw Hand / Wrist
-            cv2.circle(frame, (hand_x, hand_y), 18, (180, 160, 150), -1)
+            z = pl.finish(ctx, skel_view, overlay_objs, expected, self.toggles)
+            z["perf"]["det_ms"] = round(det_ms, 1)
+            z["perf"]["total_ms"] = round((time.perf_counter() - t_start) * 1000, 1)
+            tel["zerog"] = z
 
-            # Draw Water Bottle (Blue body + cap)
-            cv2.rectangle(frame, (bx - bottle_w // 2, by), (bx + bottle_w // 2, by + bottle_h), (220, 140, 50), -1)
-            cv2.rectangle(frame, (bx - bottle_w // 2, by), (bx + bottle_w // 2, by + bottle_h), (255, 200, 120), 2)
-            # Water level inside
-            cv2.rectangle(frame, (bx - bottle_w // 2 + 3, by + 40), (bx + bottle_w // 2 - 3, by + bottle_h - 3), (240, 180, 40), -1)
-            # Cap
-            cv2.rectangle(frame, (bx - 12, by - 16), (bx + 12, by), (200, 200, 200), -1)
+            events = self.generic.engine.drain_events() if self.generic is not None else self._tuned_events(tel, t)
+            events += self._stall_events(tel, t) if self.generic is None else []
+            self.copilot.on_events(events, tel, spec)
+            tel["events"] = events
+            tel["feed"] = self.copilot.since(0)
+            if self.dataset.active:
+                self.dataset.add(view, tel)
+            tel["dataset"] = self.dataset.status()
+            tel["toggles"] = dict(self.toggles)
+            self.last_telemetry = tel
+            return tel
 
-            writer.write(frame)
+    def _tuned_events(self, tel: dict[str, Any], t: float) -> list[dict[str, Any]]:
+        ev: list[dict[str, Any]] = []
+        cur = {s["id"]: s["status"] for s in tel.get("steps", [])}
+        if self._prev_steps:
+            for s in tel.get("steps", []):
+                before = self._prev_steps.get(s["id"])
+                if before != s["status"]:
+                    if s["status"] in ("completed", "skipped"):
+                        ev.append({"type": "step_" + s["status"], "step_id": s["id"], "name": s["name"], "t": t})
+                    elif s["status"] == "active":
+                        ev.append({"type": "step_started", "step_id": s["id"], "name": s["name"], "prompt": s["prompt"], "t": t})
+        self._prev_steps = cur
+        ra = tel.get("recent_alert")
+        if ra and ra.get("timestamp", 0) > self._prev_alert_ts:
+            self._prev_alert_ts = ra["timestamp"]
+            if ra.get("severity") not in ("info",):
+                ev.append({"type": "alert", "step_id": ra["step_id"], "kind": ra["kind"], "severity": ra["severity"],
+                           "message": ra["message"], "tts": ra.get("tts"), "t": t})
+        if tel.get("is_complete") and not self._prev_complete:
+            ev.append({"type": "procedure_complete", "t": t})
+        self._prev_complete = bool(tel.get("is_complete"))
+        return ev
 
-        writer.release()
-        return str(out_p)
+    def _stall_events(self, tel: dict[str, Any], t: float) -> list[dict[str, Any]]:
+        active = next((s for s in tel.get("steps", []) if s["status"] == "active"), None)
+        if active is None:
+            return []
+        sig = (active["id"], active.get("verification_pct", 0))
+        if sig != self._progress_sig:
+            if self._progress_sig is None or sig[0] != self._progress_sig[0] or sig[1] > self._progress_sig[1]:
+                self._last_progress_t = t
+            self._progress_sig = sig
+        if t - self._last_progress_t >= STALL_S and t - self._last_stall_t >= STALL_S:
+            self._last_stall_t = t
+            return [{"type": "stalled", "step_id": active["id"], "name": active["name"], "unmet": tel.get("unmet", []),
+                     "hint": tel.get("hint", ""), "idle_s": round(t - self._last_progress_t, 1), "t": t}]
+        return []
 
     def simulate_event(self, event_name: str) -> dict[str, Any]:
-        """Manually inject nominal steps or deviations for instant testing."""
+        """Inject nominal steps or deviations into the tuned trackers (tests and
+        offline rehearsal only - never called by the live pipeline)."""
         with self.lock:
             now = time.time()
             if event_name == "nominal_step":
@@ -826,8 +883,112 @@ class TrackerService:
             self.last_telemetry = telem
             return telem
 
+    # --------------------------------------------------------------- copilot
+    def copilot_action(self, kind: str) -> dict[str, Any]:
+        from backend.app.groq.reasoning import experiment_state
 
-# Global tracker service instance
+        with self.lock:
+            tel = dict(self.last_telemetry)
+            spec = self.spec
+        st = experiment_state(tel, spec, {"type": "crew_request", "request": kind})
+        r = self.copilot.reasoner.review(st) if kind == "review" else self.copilot.reasoner.next_step(st)
+        title = "Step review" if kind == "review" else "What to do now"
+        msg = self.copilot.post("review" if kind == "review" else "guide", title, r.get("display", ""),
+                                spoken=r.get("spoken"), source=r.get("source", "?"), latency_ms=r.get("latency_ms"),
+                                severity=None if r.get("status") != "IMPROVEMENT_NEEDED" else "caution",
+                                extra={"status": r.get("status"), "improvement": r.get("improvement"),
+                                       "safety": r.get("safety")})
+        return {**r, "message": msg}
+
+    def status_line(self) -> dict[str, Any]:
+        tel = self.last_telemetry or {}
+        active = next((s for s in tel.get("steps", []) if s["status"] == "active"), None)
+        done = sum(1 for s in tel.get("steps", []) if s["status"] == "completed")
+        n = len(tel.get("steps", []))
+        txt = (f"Step {active['id'][1:].lstrip('0')} of {n}: {active['prompt']}. {done} steps verified."
+               if active else f"Procedure complete. {done} of {n} steps verified.")
+        return {"text": txt}
+
+    # ----------------------------------------------------------------- video
+    def load_video_file(self, video_path: str | Path) -> dict[str, Any]:
+        with self.lock:
+            p = str(video_path)
+            if not Path(p).exists():
+                return {"error": f"Video file not found: {p}"}
+            if self.video_cap is not None:
+                self.video_cap.release()
+            self.video_cap = cv2.VideoCapture(p)
+            if not self.video_cap.isOpened():
+                return {"error": "OpenCV could not open this video (try MP4/H.264 or WebM)."}
+            self.active_video_path = p
+            total = int(self.video_cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            self.video_fps = float(self.video_cap.get(cv2.CAP_PROP_FPS) or 25.0)
+            if not (1.0 <= self.video_fps <= 240.0):
+                self.video_fps = 25.0
+            self.video_t0, self.video_pos0 = None, 0
+            self.reset()
+            return {"status": "loaded", "video_path": p, "total_frames": total, "fps": self.video_fps,
+                    "duration_s": round(total / self.video_fps, 1) if self.video_fps else 0}
+
+    def get_next_video_frame(self) -> dict[str, Any]:
+        with self.lock:
+            if self.video_cap is None or not self.video_cap.isOpened():
+                return {"error": "No video opened"}
+            now = time.time()
+            if self.video_t0 is None:
+                self.video_t0, self.video_pos0 = now, int(self.video_cap.get(cv2.CAP_PROP_POS_FRAMES))
+            # play in real time: skip frames the CPU could not process
+            target = self.video_pos0 + int((now - self.video_t0) * self.video_fps)
+            pos = int(self.video_cap.get(cv2.CAP_PROP_POS_FRAMES))
+            while pos < target - 1:
+                if not self.video_cap.grab():
+                    break
+                pos += 1
+            ok, frame = self.video_cap.read()
+            total = int(self.video_cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            if not ok or frame is None:
+                return {"is_eof": True, "total_frames": total}
+            pos = int(self.video_cap.get(cv2.CAP_PROP_POS_FRAMES))
+            vt = self.video_t0 + (pos - self.video_pos0) / self.video_fps
+            small = cv2.resize(frame, (640, 480))
+            tel = self.process_frame(small, vt)
+            _, buf = cv2.imencode(".jpg", small, [cv2.IMWRITE_JPEG_QUALITY, 72])
+            return {"frame": "data:image/jpeg;base64," + base64.b64encode(buf).decode("ascii"),
+                    "telemetry": tel, "frame_pos": pos, "total_frames": total, "is_eof": False}
+
+    def stop_video(self) -> dict[str, Any]:
+        with self.lock:
+            if self.video_cap is not None:
+                self.video_cap.release()
+            self.video_cap, self.active_video_path = None, None
+            return {"status": "stopped"}
+
+    # ------------------------------------------------------------ hardware
+    def system_status(self) -> dict[str, Any]:
+        from backend.app.groq.client import get_client
+
+        return {
+            "hardware": gpu_info(),
+            "mesh_backends": {
+                "pose3d": pose_backend_status(self.pipeline.pose.available, self.pipeline.pose.error),
+                "sam3d": sam3d_status(),
+            },
+            "active_mesh_backend": self.pipeline.mesh_backend,
+            "groq": get_client().status(),
+            "detector": "YOLOv8n (ONNX Runtime, CPU)" if str(getattr(self.yolo.det_model, "ckpt_path", "") or "").endswith(".onnx")
+            or "onnx" in str(getattr(self.yolo.det_model, "model", "")) else "YOLOv8n (PyTorch, CPU)",
+        }
+
+    def set_mesh_backend(self, backend: str) -> dict[str, Any]:
+        if backend == "sam3d":
+            st = sam3d_status()
+            if not st["available"]:
+                return {"error": "MODEL UNAVAILABLE", **st}
+            return {"error": "SAM 3D Body adapter is installed but not wired on this build", **st}
+        self.pipeline.mesh_backend = "pose3d"
+        return {"active_mesh_backend": "pose3d"}
+
+
 _service: TrackerService | None = None
 
 

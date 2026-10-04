@@ -114,146 +114,26 @@
       white-space: nowrap;
     }
 
-    /* Scroll-driven Spaceship & Astronaut Descent */
-    #scroll-spaceship-rig {
-      position: fixed;
-      top: 0;
-      left: 0;
-      z-index: 999;
-      pointer-events: auto;
-      cursor: pointer;
-      will-change: transform;
-      filter: drop-shadow(0 0 16px rgba(0, 240, 255, 0.45));
-    }
-    .ship-hull-wrap {
-      position: relative;
-      width: 76px;
-      height: 96px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-    }
-    .ship-flame {
-      position: absolute;
-      bottom: -14px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 14px;
-      height: 24px;
-      background: linear-gradient(180deg, #ffffff, #00f0ff 40%, #ff9933 80%, transparent);
-      border-radius: 50% 50% 20% 20%;
-      filter: blur(1px);
-      animation: flameFlicker 0.12s infinite alternate;
-      box-shadow: 0 0 16px #ff9933, 0 0 30px #00f0ff;
-    }
-    @keyframes flameFlicker {
-      0% { height: 18px; transform: translateX(-50%) scaleX(0.9); opacity: 0.85; }
-      100% { height: 28px; transform: translateX(-50%) scaleX(1.15); opacity: 1; }
-    }
-    .ship-label {
-      position: absolute;
-      top: -22px;
-      left: 50%;
-      transform: translateX(-50%);
-      font-family: var(--font-mono);
-      font-size: 9px;
-      color: var(--cyan);
-      background: rgba(3, 7, 18, 0.85);
-      border: 1px solid var(--border-space);
-      padding: 2px 6px;
-      border-radius: 4px;
-      white-space: nowrap;
-      pointer-events: none;
-      letter-spacing: 0.5px;
-    }
-
-    /* Semicircular Moon Surface */
-    #moon-landing-zone {
-      position: relative;
-      width: 100%;
-      height: 320px;
-      overflow: hidden;
-      display: flex;
-      justify-content: center;
-      align-items: flex-end;
-      margin-top: 3rem;
-      pointer-events: none;
-    }
-    .moon-semicircle {
-      position: relative;
-      width: min(1200px, 94vw);
-      height: 250px;
-      border-radius: 600px 600px 0 0;
-      background: radial-gradient(circle at 50% 20%, #2a3447 0%, #151d2c 55%, #0b111a 90%);
-      border-top: 3px solid rgba(0, 240, 255, 0.4);
-      box-shadow: 0 -15px 60px rgba(0, 240, 255, 0.25), inset 0 20px 40px rgba(255, 255, 255, 0.12);
-      display: flex;
-      justify-content: center;
-    }
-    .moon-crater {
-      position: absolute;
-      border-radius: 50%;
-      background: rgba(10, 16, 26, 0.65);
-      border: 1.5px solid rgba(255, 255, 255, 0.08);
-      box-shadow: inset 2px 2px 6px rgba(0, 0, 0, 0.8), inset -2px -2px 6px rgba(255, 255, 255, 0.06);
-    }
-    .crater-1 { width: 54px; height: 38px; top: 40px; left: 18%; }
-    .crater-2 { width: 90px; height: 60px; top: 75px; left: 68%; }
-    .crater-3 { width: 40px; height: 28px; top: 110px; left: 38%; }
-    .crater-4 { width: 70px; height: 46px; top: 45px; left: 48%; }
-    .moon-beacon {
-      position: absolute;
-      top: -14px;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
-    }
-    .beacon-pulse {
-      width: 14px;
-      height: 14px;
-      background: var(--cyan);
-      border-radius: 50%;
-      box-shadow: 0 0 20px var(--cyan);
-      animation: pulse 1.4s infinite;
-    }
-    .beacon-text {
-      font-family: var(--font-mono);
-      font-size: 10px;
-      color: #fff;
-      background: rgba(3, 7, 18, 0.9);
-      border: 1px solid var(--cyan);
-      padding: 3px 8px;
-      border-radius: 4px;
-      letter-spacing: 1px;
-      box-shadow: 0 0 12px rgba(0, 240, 255, 0.4);
-    }
-    .touchdown-banner {
-      position: absolute;
-      bottom: 25px;
-      font-family: var(--font-mono);
-      font-size: 0.85rem;
-      color: var(--emerald);
-      background: rgba(16, 185, 129, 0.12);
-      border: 1px solid var(--emerald);
-      padding: 6px 18px;
-      border-radius: 20px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      opacity: 0;
-      transform: translateY(10px);
-      transition: all 0.4s ease;
-      letter-spacing: 1px;
-    }
-    .touchdown-banner.active {
-      opacity: 1;
-      transform: translateY(0);
-      box-shadow: 0 0 20px rgba(16, 185, 129, 0.4);
-    }
+    /* ===== Scroll-driven lunar descent (ship + astronaut + moon) ===== */
+    #descent-moon, #descent-ship { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; }
+    #descent-moon { z-index: 5; }
+    #descent-ship { z-index: 11; }
+    #descent-ship .ship-hit { pointer-events: auto; cursor: pointer; }
+    .descent-hud { font-family: var(--font-mono); font-size: 11px; letter-spacing: .5px; }
+    #altimeter { position: fixed; right: 14px; top: 50%; transform: translateY(-50%); z-index: 12; width: 46px; height: min(58vh, 460px);
+      display: flex; flex-direction: column; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 9px; color: var(--text-muted); user-select: none; }
+    #altimeter .rail { position: relative; flex: 1; width: 6px; border-radius: 6px; background: linear-gradient(180deg, rgba(0,240,255,.35), rgba(148,163,184,.25) 70%, rgba(16,185,129,.45)); cursor: pointer; }
+    #altimeter .tick { position: absolute; left: -8px; width: 22px; height: 1px; background: rgba(148,163,184,.4); }
+    #altimeter .knob { position: absolute; left: 50%; width: 22px; height: 22px; margin-left: -11px; margin-top: -11px; border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #fff, #67e8f9 45%, #0891b2); box-shadow: 0 0 14px var(--cyan); pointer-events: none; }
+    #altimeter .alt { color: var(--cyan); font-weight: 700; font-size: 10px; text-align: center; white-space: nowrap; }
+    #landing-site { position: relative; min-height: 92vh; display: flex; flex-direction: column; align-items: center; padding: 6rem 1.5rem 0; text-align: center; }
+    #landing-site h2 { font-family: var(--font-display); font-size: clamp(1.8rem, 4vw, 3rem); }
+    #landing-site p { color: var(--text-muted); max-width: 640px; margin: .8rem auto 1.6rem; }
+    .touchdown-chip { display: inline-flex; gap: 8px; align-items: center; font-family: var(--font-mono); font-size: .8rem; color: var(--emerald);
+      border: 1px solid rgba(16,185,129,.45); background: rgba(3,7,18,.75); padding: .45rem .9rem; border-radius: 999px; opacity: 0; transform: translateY(8px); transition: .5s; }
+    .touchdown-chip.active { opacity: 1; transform: none; }
+    @media (max-width: 760px) { #altimeter { display: none; } }
 
     /* App Container */
     .app-wrap {
@@ -893,29 +773,64 @@
   </div>
   <div id="cursor-telemetry">MET T+00:14:32 | LEO 400KM | BAS-1</div>
 
-  <!-- Interactive Spaceship Rig with Astronaut Cockpit (Follows Scroll to Moon) -->
-  <div id="scroll-spaceship-rig" title="Orbital Descent Module (Follows Scroll Progress)">
-    <div class="ship-hull-wrap">
-      <div class="ship-label" id="ship-altitude-label">ALT: 420 KM (ORBIT)</div>
-      <svg width="68" height="82" viewBox="0 0 100 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect x="2" y="55" width="26" height="14" rx="2" fill="#1e293b" stroke="#00f0ff" stroke-width="1.5"/>
-        <line x1="15" y1="55" x2="15" y2="69" stroke="#00f0ff" stroke-width="1"/>
-        <rect x="72" y="55" width="26" height="14" rx="2" fill="#1e293b" stroke="#00f0ff" stroke-width="1.5"/>
-        <line x1="85" y1="55" x2="85" y2="69" stroke="#00f0ff" stroke-width="1"/>
-        <path d="M50 10 C32 35 30 75 32 95 L68 95 C70 75 68 35 50 10 Z" fill="#e2e8f0" stroke="#00f0ff" stroke-width="2"/>
-        <rect x="26" y="80" width="8" height="12" rx="2" fill="#64748b"/>
-        <rect x="66" y="80" width="8" height="12" rx="2" fill="#64748b"/>
-        <path d="M30 95 L70 95 L65 102 L35 102 Z" fill="#334155"/>
-        <ellipse cx="50" cy="46" rx="14" ry="16" fill="#0f172a" stroke="#38bdf8" stroke-width="2"/>
-        <circle cx="50" cy="45" r="9" fill="#f8fafc"/>
-        <ellipse cx="50" cy="45" rx="7" ry="5" fill="#f59e0b" stroke="#d97706" stroke-width="1"/>
-        <path d="M47 43 Q50 41 53 43" stroke="#fff" stroke-width="1" stroke-linecap="round"/>
-        <rect x="44" y="68" width="12" height="2" fill="#ff9933"/>
-        <rect x="44" y="70" width="12" height="2" fill="#ffffff"/>
-        <rect x="44" y="72" width="12" height="2" fill="#138808"/>
-      </svg>
-      <div class="ship-flame" id="ship-main-thruster"></div>
-    </div>
+  <!-- Scroll-driven lunar descent: moon (behind content) + ship & astronaut (above) -->
+  <svg id="descent-moon" aria-hidden="true">
+    <defs>
+      <radialGradient id="moonFill" cx="50%" cy="8%" r="75%"><stop offset="0" stop-color="#7c8598"/><stop offset=".3" stop-color="#454d5f"/><stop offset="1" stop-color="#161c28"/></radialGradient>
+      <radialGradient id="earthFill" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#7dd3fc"/><stop offset=".45" stop-color="#2563eb"/><stop offset="1" stop-color="#0b1b4d"/></radialGradient>
+      <radialGradient id="moonGlow" cx="50%" cy="0%" r="60%"><stop offset="0" stop-color="rgba(0,240,255,.25)"/><stop offset="1" stop-color="transparent"/></radialGradient>
+      <radialGradient id="craterFill" cx="40%" cy="35%" r="70%"><stop offset="0" stop-color="#2a3142"/><stop offset="1" stop-color="#4a5266"/></radialGradient>
+    </defs>
+    <g id="earth"><circle r="60" fill="url(#earthFill)"/><path d="M-30,-20 q12,-14 26,-4 q8,10 -6,16 q-14,4 -20,-12z M8,14 q16,-6 22,6 q-6,14 -20,6z" fill="#34d399" opacity=".55"/>
+      <circle r="64" fill="none" stroke="rgba(125,211,252,.35)" stroke-width="5"/></g>
+    <g id="moon">
+      <circle id="moonBody" fill="url(#moonFill)"/>
+      <circle id="moonRim" fill="none" stroke="rgba(0,240,255,.35)" stroke-width="2"/>
+      <g id="craters"></g>
+      <g id="pad"><ellipse rx="70" ry="9" fill="rgba(0,240,255,.12)" stroke="rgba(0,240,255,.55)" stroke-dasharray="6 5"/>
+        <circle id="beacon" cx="0" cy="-2" r="5" fill="#00f0ff"/></g>
+      <g id="dust"></g>
+    </g>
+  </svg>
+  <svg id="descent-ship" aria-hidden="true">
+    <path id="trajectory" fill="none" stroke="rgba(0,240,255,.25)" stroke-width="1.5" stroke-dasharray="4 7"/>
+    <g id="ship">
+      <g id="shipBody" class="ship-hit">
+        <title>Crew descent module - click to fly to the surface (or back to orbit)</title>
+        <!-- thruster plume -->
+        <path id="flame" d="M-11,46 Q0,110 11,46 Z" fill="url(#flameGrad)"/>
+        <defs><linearGradient id="flameGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset=".35" stop-color="#67e8f9"/><stop offset=".75" stop-color="#ff9933" stop-opacity=".8"/><stop offset="1" stop-color="#ff9933" stop-opacity="0"/></linearGradient></defs>
+        <!-- landing legs -->
+        <g id="legL"><line x1="-18" y1="30" x2="-34" y2="58" stroke="#cbd5e1" stroke-width="3"/><line x1="-40" y1="58" x2="-28" y2="58" stroke="#cbd5e1" stroke-width="3"/></g>
+        <g id="legR"><line x1="18" y1="30" x2="34" y2="58" stroke="#cbd5e1" stroke-width="3"/><line x1="28" y1="58" x2="40" y2="58" stroke="#cbd5e1" stroke-width="3"/></g>
+        <!-- hull -->
+        <path d="M0,-58 C-20,-34 -26,4 -24,40 L24,40 C26,4 20,-34 0,-58 Z" fill="#e2e8f0" stroke="#00f0ff" stroke-width="2"/>
+        <path d="M-24,40 L24,40 L18,50 L-18,50 Z" fill="#334155"/>
+        <rect x="-36" y="0" width="12" height="26" rx="3" fill="#1e293b" stroke="#00f0ff"/><rect x="24" y="0" width="12" height="26" rx="3" fill="#1e293b" stroke="#00f0ff"/>
+        <rect x="-9" y="22" width="18" height="3" fill="#ff9933"/><rect x="-9" y="25" width="18" height="3" fill="#ffffff"/><rect x="-9" y="28" width="18" height="3" fill="#138808"/>
+        <!-- cockpit with astronaut -->
+        <circle cx="0" cy="-20" r="15" fill="#0b1220" stroke="#38bdf8" stroke-width="2"/>
+        <g id="crewInShip"><circle cx="0" cy="-21" r="9" fill="#f8fafc"/><ellipse cx="0" cy="-21" rx="6.5" ry="4.6" fill="#f59e0b" stroke="#b45309"/><path d="M-4,-23 q4,-2 8,0" stroke="#fff" stroke-width="1.2" fill="none"/>
+          <path d="M-9,-10 q9,-6 18,0 v3 h-18z" fill="#e2e8f0"/></g>
+        <circle cx="0" cy="-20" r="15" fill="rgba(125,211,252,.18)"/>
+        <path d="M-8,-30 q6,-5 13,-2" stroke="rgba(255,255,255,.7)" stroke-width="2" fill="none"/>
+      </g>
+      <!-- astronaut EVA (after touchdown) -->
+      <g id="eva" opacity="0">
+        <g id="evaBody"><circle cx="0" cy="-30" r="9" fill="#f8fafc"/><ellipse cx="0" cy="-30" rx="6.5" ry="4.6" fill="#f59e0b"/>
+          <rect x="-8" y="-21" width="16" height="20" rx="5" fill="#f1f5f9"/><rect x="-12" y="-20" width="5" height="14" rx="2" fill="#cbd5e1"/>
+          <line id="armR" x1="8" y1="-17" x2="15" y2="-6" stroke="#f1f5f9" stroke-width="4" stroke-linecap="round"/>
+          <line id="legEL" x1="-3" y1="-2" x2="-5" y2="12" stroke="#f1f5f9" stroke-width="4.5" stroke-linecap="round"/>
+          <line id="legER" x1="3" y1="-2" x2="5" y2="12" stroke="#f1f5f9" stroke-width="4.5" stroke-linecap="round"/></g>
+      </g>
+      <g id="flag" opacity="0"><line x1="0" y1="12" x2="0" y2="-34" stroke="#cbd5e1" stroke-width="2"/>
+        <rect x="1" y="-34" width="22" height="5" fill="#ff9933"/><rect x="1" y="-29" width="22" height="5" fill="#fff"/><rect x="1" y="-24" width="22" height="5" fill="#138808"/><circle cx="12" cy="-26.5" r="1.6" fill="#1d4ed8"/></g>
+      <g id="shipHud" class="descent-hud"><rect id="hudBg" x="-236" y="-64" width="190" height="40" rx="6" fill="rgba(3,7,18,.82)" stroke="rgba(0,240,255,.45)"/>
+        <text id="hudPhase" x="-228" y="-48" fill="#00f0ff" font-weight="700">ORBIT</text><text id="hudAlt" x="-228" y="-32" fill="#cbd5e1">ALT 420 km · V 7.6 km/s</text></g>
+    </g>
+  </svg>
+  <div id="altimeter" title="Altitude = scroll position. Click to fly there.">
+    <span>ORBIT</span><div class="rail" id="altRail"><div class="knob" id="altKnob"></div></div><span>SURFACE</span><span class="alt" id="altText">420 km</span>
   </div>
 
   <div class="app-wrap">
@@ -1289,23 +1204,13 @@
       </div>
     </section>
 
-    <!-- Semicircular Moon Surface Landing Zone -->
-    <div id="moon-landing-zone">
-      <div class="moon-semicircle">
-        <div class="moon-crater crater-1"></div>
-        <div class="moon-crater crater-2"></div>
-        <div class="moon-crater crater-3"></div>
-        <div class="moon-crater crater-4"></div>
-        <div class="moon-beacon">
-          <div class="beacon-pulse"></div>
-          <div class="beacon-text">BAS-1 LUNAR SURFACE SITE</div>
-        </div>
-        <div id="touchdown-banner" class="touchdown-banner">
-          <span style="display:inline-block; width:8px; height:8px; background:var(--emerald); border-radius:50%; box-shadow:0 0 8px var(--emerald);"></span>
-          <span>ASTRONAUT TOUCHDOWN NOMINAL · BAS-1 LUNAR BASE REACHED</span>
-        </div>
-      </div>
-    </div>
+    <!-- Final approach: empty sky above the rising lunar horizon -->
+    <section id="landing-site">
+      <div class="touchdown-chip" id="touchdownChip"><span style="width:8px;height:8px;border-radius:50%;background:var(--emerald);box-shadow:0 0 8px var(--emerald)"></span>TOUCHDOWN NOMINAL · CREW EGRESS · BAS-1 LUNAR SITE</div>
+      <h2 style="margin-top:1rem">Landed. Now the science starts.</h2>
+      <p>On the surface there is no ground team in the loop. PARIKSHAK watches every procedure step relative to the rack, speaks the next step and flags what was skipped.</p>
+      <a href="/console" class="btn-primary-hero" style="display:inline-flex;pointer-events:auto">Begin experiment</a>
+    </section>
 
     <!-- Footer -->
     <footer class="mission-footer">
@@ -1484,67 +1389,86 @@
       });
     });
 
-    // 4. Scrollbar-Driven Spaceship Descent & Lunar Touchdown Animation
-    const spaceship = document.getElementById("scroll-spaceship-rig");
-    const altLabel = document.getElementById("ship-altitude-label");
-    const touchdownBanner = document.getElementById("touchdown-banner");
-
-    function updateSpaceshipDescent() {
-      if (!spaceship) return;
-      const scrollY = window.scrollY || window.pageYOffset;
-      const maxScroll = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
-      const progress = Math.min(1.0, Math.max(0.0, scrollY / maxScroll));
-
-      const winW = window.innerWidth;
-      const winH = window.innerHeight;
-
-      // Start in upper orbital position: right ~8%, top ~16%
-      // Descent trajectory lands directly on center of semicircular moon at bottom
-      const startX = winW * 0.90;
-      const startY = winH * 0.16;
-      const endX = winW * 0.50;
-      const endY = winH - 180;
-
-      // Parabolic flight arc
-      const currentX = startX + (endX - startX) * Math.sin(progress * Math.PI * 0.5);
-      const currentY = startY + (endY - startY) * progress;
-
-      // Entry attitude angle: tilts for atmospheric entry, straightens upright for landing touchdown
-      let angle = 0;
-      if (progress < 0.85) {
-        angle = -14 + progress * 32;
-      } else {
-        angle = (1 - (progress - 0.85) / 0.15) * 12;
+    // 4. Scroll-driven lunar descent: scroll progress = altitude
+    (function descent() {
+      const $ = (id) => document.getElementById(id);
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const ship = $("ship"), traj = $("trajectory"), flame = $("flame"), legL = $("legL"), legR = $("legR");
+      const eva = $("eva"), evaBody = $("evaBody"), flag = $("flag"), crewIn = $("crewInShip");
+      const hudPhase = $("hudPhase"), hudAlt = $("hudAlt"), hud = $("shipHud");
+      const moonBody = $("moonBody"), moonRim = $("moonRim"), craters = $("craters"), pad = $("pad"), dust = $("dust"), earth = $("earth");
+      const knob = $("altKnob"), rail = $("altRail"), altText = $("altText"), chip = $("touchdownChip");
+      const NS = "http://www.w3.org/2000/svg";
+      const CR = [[-0.30, 0.10, 34], [-0.12, 0.04, 18], [0.18, 0.07, 26], [0.36, 0.13, 40], [-0.48, 0.20, 52], [0.05, 0.16, 22], [0.55, 0.24, 46]];
+      const craterEls = CR.map(() => { const e = document.createElementNS(NS, "ellipse"); e.setAttribute("fill", "url(#craterFill)"); e.setAttribute("stroke", "rgba(255,255,255,.08)"); craters.appendChild(e); return e; });
+      const particles = Array.from({ length: 26 }, () => { const c = document.createElementNS(NS, "circle"); c.setAttribute("fill", "rgba(203,213,225,.55)"); dust.appendChild(c); return { el: c, a: Math.random() * Math.PI, s: 0.4 + Math.random() * 0.9, r: 1 + Math.random() * 2.4 }; });
+      let target = 0, p = 0, t0 = performance.now();
+      const ease = (x) => x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
+      const lerp = (a, b, k) => a + (b - a) * k;
+      const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+      function progress() { const max = Math.max(1, document.documentElement.scrollHeight - innerHeight); return clamp(scrollY / max); }
+      function render(now, snap = false) {
+        p = snap ? target : p + (target - p) * (reduce ? 1 : 0.12);
+        const W = innerWidth, H = innerHeight, narrow = W < 760, time = (now - t0) / 1000;
+        // ---- moon rises from the bottom as altitude drops
+        // horizon stays low (and dark) while the reader is in the content, rises in the final approach
+        const vis = p < 0.8 ? lerp(18, H * 0.11, clamp(p / 0.8)) : lerp(H * 0.11, H * (narrow ? 0.26 : 0.34), ease(clamp((p - 0.8) / 0.2)));
+        document.getElementById("moon").setAttribute("opacity", lerp(0.55, 1, clamp((p - 0.7) / 0.3)));
+        const R = Math.max(W * 1.25, 900), cx = W / 2, cy = H - vis + R, padY = H - vis;
+        moonBody.setAttribute("cx", cx); moonBody.setAttribute("cy", cy); moonBody.setAttribute("r", R);
+        moonRim.setAttribute("cx", cx); moonRim.setAttribute("cy", cy); moonRim.setAttribute("r", R);
+        const zoom = lerp(0.35, 1.25, ease(p));
+        CR.forEach(([dx, dy, r], i) => { const x = cx + dx * W * 0.9, y = padY + dy * vis * 2.4 + 4, rr = r * zoom; craterEls[i].setAttribute("cx", x); craterEls[i].setAttribute("cy", y); craterEls[i].setAttribute("rx", rr); craterEls[i].setAttribute("ry", rr * 0.38); craterEls[i].setAttribute("opacity", y < H + 30 ? 0.9 : 0); });
+        pad.setAttribute("transform", `translate(${cx},${padY + 2}) scale(${lerp(0.45, 1.1, ease(p))})`);
+        $("beacon").setAttribute("opacity", 0.45 + 0.55 * Math.abs(Math.sin(time * 3)));
+        // ---- earth recedes
+        const es = lerp(0.85, 0.3, ease(p)); earth.setAttribute("transform", `translate(${W * (narrow ? 0.14 : 0.06)},${H * 0.15 - p * H * 0.08}) scale(${es})`); earth.setAttribute("opacity", lerp(0.95, 0.35, p));
+        // ---- trajectory: right-margin descent while reading, final swing to the pad
+        const sx = W * (narrow ? 0.80 : 0.88), sy = H * 0.20, mx = W * (narrow ? 0.80 : 0.86), my = H * 0.62, ex = cx, ey = padY - 58;
+        const q = ease(p), k1 = clamp(p / 0.78), k2 = clamp((p - 0.78) / 0.22);
+        let x, y;
+        if (p < 0.78) { x = lerp(sx, mx, k1) + Math.sin(k1 * Math.PI) * W * 0.03; y = lerp(sy, my, k1); }
+        else { const e2 = ease(k2); x = (1 - e2) * (1 - e2) * mx + 2 * (1 - e2) * e2 * (mx - W * 0.05) + e2 * e2 * ex; y = (1 - e2) * (1 - e2) * my + 2 * (1 - e2) * e2 * (my + (ey - my) * 0.2) + e2 * e2 * ey; }
+        const tilt = p < 0.78 ? lerp(-18, 8, k1) + Math.sin(time * 1.4) * 1.5 : lerp(-14, 0, ease(k2));
+        const sc = (narrow ? 0.7 : 1) * lerp(0.8, 1.15, q);
+        ship.setAttribute("transform", `translate(${x},${y}) rotate(${tilt}) scale(${sc})`);
+        traj.setAttribute("d", `M${x},${y + 40} Q${(x + ex) / 2 - W * 0.06},${(y + ey) / 2} ${ex},${ey + 58}`);
+        traj.setAttribute("opacity", p < 0.97 ? 1 : 0);
+        // ---- thruster: retro-burn grows during terminal descent, cuts at touchdown
+        const landed = p >= 0.97;
+        const burn = landed ? 0 : (p < 0.15 ? 0.35 : p < 0.78 ? 0.55 : 0.75 + 0.5 * k2);
+        flame.setAttribute("transform", `scale(${burn ? 1 : 0.001},${(burn + Math.sin(time * 40) * 0.08) || 0.001})`);
+        flame.setAttribute("opacity", burn ? 0.95 : 0);
+        const legA = clamp((p - 0.82) / 0.1) * 1; legL.setAttribute("transform", `rotate(${lerp(35, 0, legA)},-18,30)`); legR.setAttribute("transform", `rotate(${lerp(-35, 0, legA)},18,30)`);
+        // ---- touchdown dust + crew egress
+        const dustK = clamp((p - 0.9) / 0.07) * (landed ? Math.max(0, 1 - (p - 0.97) / 0.03) : 1);
+        particles.forEach((d, i) => { const ph = (time * d.s + i / particles.length) % 1; const dist = ph * 120 * dustK; const dir = i % 2 ? 1 : -1;
+          d.el.setAttribute("cx", cx + dir * (20 + dist) * Math.cos(d.a * 0.3)); d.el.setAttribute("cy", padY - Math.sin(ph * Math.PI) * 26 * dustK * d.s); d.el.setAttribute("r", d.r); d.el.setAttribute("opacity", dustK * (1 - ph) * 0.8); });
+        const egress = clamp((p - 0.975) / 0.025);
+        eva.setAttribute("opacity", egress); crewIn.setAttribute("opacity", 1 - egress);
+        const walk = egress * 70, stride = Math.sin(time * 6) * 6 * (egress > 0 && egress < 1 ? 1 : 0.2);
+        eva.setAttribute("transform", `translate(${34 + walk},${46})`);
+        $("legEL").setAttribute("x2", -5 - stride); $("legER").setAttribute("x2", 5 + stride);
+        flag.setAttribute("opacity", clamp((egress - 0.6) / 0.4)); flag.setAttribute("transform", `translate(${120},${46})`);
+        // ---- HUD + altimeter
+        const altKm = Math.max(0, (1 - p) * 420);
+        const phase = landed ? "TOUCHDOWN · CREW EGRESS" : p < 0.15 ? "ORBIT · BAS-1" : p < 0.45 ? "DE-ORBIT BURN" : p < 0.78 ? "POWERED DESCENT" : "TERMINAL DESCENT";
+        hudPhase.textContent = phase; hudPhase.setAttribute("fill", landed ? "#10b981" : "#00f0ff");
+        hudAlt.textContent = landed ? "ALT 0.0 m · ENGINES SAFE" : altKm > 1 ? `ALT ${altKm.toFixed(0)} km · V ${(0.2 + 7.4 * (1 - p)).toFixed(1)} km/s` : `ALT ${(altKm * 1000).toFixed(0)} m · V ${(2 + 60 * (1 - p)).toFixed(0)} m/s`;
+        hud.setAttribute("transform", `rotate(${-tilt})`);
+        knob.style.top = `${p * 100}%`; altText.textContent = landed ? "0 m" : altKm >= 1 ? `${altKm.toFixed(0)} km` : `${(altKm * 1000).toFixed(0)} m`;
+        if (chip) chip.classList.toggle("active", landed);
       }
-
-      spaceship.style.transform = `translate3d(${currentX - 38}px, ${currentY - 48}px, 0) rotate(${angle}deg)`;
-
-      // Dynamic Altitude & Touchdown Status
-      const km = Math.max(0, Math.round((1 - progress) * 420));
-      if (progress < 0.96) {
-        altLabel.textContent = `ALT: ${km} KM (DESCENT)`;
-        altLabel.style.color = "var(--cyan)";
-        if (touchdownBanner) touchdownBanner.classList.remove("active");
-      } else {
-        altLabel.textContent = `ALT: 0.0 M (TOUCHDOWN)`;
-        altLabel.style.color = "var(--emerald)";
-        if (touchdownBanner) touchdownBanner.classList.add("active");
-      }
-    }
-
-    window.addEventListener("scroll", updateSpaceshipDescent, { passive: true });
-    window.addEventListener("resize", updateSpaceshipDescent);
-    // Smooth scroll down to moon or back up when clicking the spaceship
-    if (spaceship) {
-      spaceship.addEventListener("click", () => {
-        const isNearBottom = (window.scrollY || window.pageYOffset) > (document.documentElement.scrollHeight - window.innerHeight) * 0.5;
-        window.scrollTo({
-          top: isNearBottom ? 0 : document.documentElement.scrollHeight,
-          behavior: "smooth"
-        });
-      });
-    }
-    updateSpaceshipDescent();
+      function frame(now) { render(now); requestAnimationFrame(frame); }
+      window.__descentRender = (now) => render(now ?? performance.now(), true); // for tests / screenshots
+      // altimeter ticks + click-to-fly
+      for (let i = 0; i <= 10; i++) { const t = document.createElement("div"); t.className = "tick"; t.style.top = `${i * 10}%`; rail.appendChild(t); }
+      rail.addEventListener("click", (e) => { const r = rail.getBoundingClientRect(); const k = clamp((e.clientY - r.top) / r.height); window.scrollTo({ top: k * (document.documentElement.scrollHeight - innerHeight), behavior: "smooth" }); });
+      $("shipBody").addEventListener("click", () => { const max = document.documentElement.scrollHeight - innerHeight; window.scrollTo({ top: progress() > 0.5 ? 0 : max, behavior: "smooth" }); });
+      addEventListener("scroll", () => { target = progress(); }, { passive: true });
+      addEventListener("resize", () => { target = progress(); });
+      target = progress(); p = target; requestAnimationFrame(frame);
+    })();
   </script>
 </body>
 </html>

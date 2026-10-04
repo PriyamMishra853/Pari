@@ -1,0 +1,54 @@
+experiment:
+  id: CYA-1
+  title: "CYA-1 Cyanobacteria Culture Photobioreactor Check"
+  category: Space biology
+  inspired_by: "ISRO Ax-4 microgravity experiment theme: growth of cyanobacteria / microalgae for life support"
+  rack_id: BIO-RACK-1
+  props: "A bottle (culture flask)"
+  objects: {flask: [bottle, vase]}
+  stall_s: 15
+  steps:
+    - id: S01
+      name: Retrieve culture flask
+      prompt: "Pick up the culture flask from the incubator."
+      voice: "Step one. Pick up the culture flask."
+      require: [{in_hand: flask}, {lifted: flask}]
+      hold_s: 0.8
+      hint: "Lift the bottle clearly above the table."
+      expected_activity: GRASP_TOOL
+    - id: S02
+      name: Agitate the culture
+      prompt: "Gently agitate the flask to mix the culture."
+      voice: "Step two. Gently agitate the flask to mix the culture."
+      require: [{shaken: flask}]
+      hold_s: 0.6
+      forbid:
+        - {when: {near_mouth: flask}, kind: hazard, severity: critical, message: "Hazard - culture flask brought to the mouth. Biological samples must stay away from the face.", tts: "Hazard. Keep the culture flask away from your mouth."}
+      hint: "Shake the bottle back and forth several times."
+      expected_activity: MOVE_TOOL
+    - id: S03
+      name: Light exposure
+      prompt: "Raise the flask toward the overhead light panel and hold."
+      voice: "Step three. Raise the flask toward the overhead light panel and hold."
+      require: [{above_head: flask}]
+      hold_s: 1.5
+      hint: "Lift the bottle above your head and keep it there."
+      expected_activity: MOVE_TOOL
+    - id: S04
+      name: Density check
+      prompt: "Hold the flask at eye level to check culture density."
+      voice: "Step four. Hold the flask at eye level and check the culture density."
+      require: [{near_face: flask}]
+      hold_s: 1.0
+      forbid:
+        - {when: {near_mouth: flask}, kind: hazard, severity: critical, message: "Hazard - flask at the mouth during inspection.", tts: "Hazard. Inspect at eye level, not at your mouth."}
+      hint: "Bring the bottle in front of your eyes."
+      expected_activity: INSPECT_PAYLOAD
+    - id: S05
+      name: Return flask
+      prompt: "Return the flask to the incubator and release it."
+      voice: "Final step. Return the flask and release it."
+      require: [{resting: flask}, {hands_free: true}]
+      hold_s: 0.8
+      hint: "Put the bottle down on the table and move your hands away."
+      expected_activity: RELEASE_TOOL

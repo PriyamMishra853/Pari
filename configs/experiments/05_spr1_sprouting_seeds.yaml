@@ -1,0 +1,44 @@
+experiment:
+  id: SPR-1
+  title: "SPR-1 Sprouting Salad Seeds Check"
+  category: Space biology
+  inspired_by: "ISRO Ax-4 microgravity experiment theme: sprouting of salad crop seeds"
+  rack_id: BIO-RACK-1
+  props: "A potted plant or bowl (seed chamber), a phone (camera), a bottle (water)"
+  objects: {chamber: [potted plant, bowl], camera_phone: [cell phone], water: [bottle, cup]}
+  stall_s: 15
+  steps:
+    - id: S01
+      name: Locate seed growth chamber
+      prompt: "Bring the seed growth chamber into view."
+      voice: "Step one. Bring the seed growth chamber into camera view."
+      require: [{visible: chamber}]
+      hold_s: 0.8
+      hint: "Place the plant pot or bowl on the table, fully visible."
+      expected_activity: APPROACH_PAYLOAD
+    - id: S02
+      name: Photograph the sprouts
+      prompt: "Hold the camera close to the chamber to photograph the sprouts."
+      voice: "Step two. Photograph the sprouts with the camera held near the chamber."
+      require: [{in_hand: camera_phone}, {near: [camera_phone, chamber]}]
+      hold_s: 1.0
+      hint: "Hold the phone right next to the pot or bowl as if taking a photo."
+      expected_activity: INSPECT_PAYLOAD
+    - id: S03
+      name: Water the seeds
+      prompt: "Tilt the water bottle over the chamber to water the seeds."
+      voice: "Step three. Tilt the water bottle over the chamber to water the seeds."
+      require: [{in_hand: water}, {tilted: water}, {near: [water, chamber]}]
+      hold_s: 1.0
+      forbid:
+        - {when: {near_mouth: water}, kind: wrong_action, severity: caution, message: "Wrong action - the seed-module water was brought to the mouth instead of the chamber.", tts: "Caution. That water is for the seed chamber, not for drinking."}
+      hint: "Hold the bottle over the pot and tip it sideways."
+      expected_activity: MOVE_TOOL
+    - id: S04
+      name: Stow tools
+      prompt: "Put the phone and bottle down and release them."
+      voice: "Final step. Stow the phone and the bottle and release them."
+      require: [{hands_free: true}, {visible: chamber}]
+      hold_s: 0.8
+      hint: "Put everything down and move your hands away."
+      expected_activity: RELEASE_TOOL

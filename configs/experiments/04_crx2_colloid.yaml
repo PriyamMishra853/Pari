@@ -1,0 +1,54 @@
+experiment:
+  id: CRX-2
+  title: "CRX-2 Colloid Resuspension and Tray Return"
+  category: Fluid physics
+  inspired_by: "Microgravity colloid / soft-matter experiments (sample agitation and settling)"
+  rack_id: MSG-A (Microgravity Science Glovebox)
+  props: "A small bottle (sample vial) and a cup or bowl (sample tray)"
+  objects: {vial: [bottle, vase], tray: [cup, bowl, wine glass]}
+  stall_s: 15
+  steps:
+    - id: S01
+      name: Retrieve sample vial
+      prompt: "Retrieve vial B and lift it from the cold locker."
+      voice: "Step one. Retrieve vial B and lift it clear of the locker."
+      require: [{in_hand: vial}, {lifted: vial}]
+      hold_s: 0.8
+      hint: "Pick up the bottle and lift it well above the table."
+      expected_activity: GRASP_TOOL
+    - id: S02
+      name: Resuspend by agitation
+      prompt: "Agitate vial B to resuspend the colloid."
+      voice: "Step two. Shake the vial to resuspend the colloid."
+      require: [{shaken: vial}]
+      hold_s: 0.6
+      forbid:
+        - {when: {near_mouth: vial}, kind: hazard, severity: critical, message: "Hazard - sample vial brought to the face. Keep samples away from the mouth.", tts: "Hazard. Keep the sample vial away from your face."}
+      hint: "Shake the bottle up and down several times while holding it."
+      expected_activity: MOVE_TOOL
+    - id: S03
+      name: Inspect suspension at eye level
+      prompt: "Hold vial B at eye level and confirm the suspension is uniform."
+      voice: "Step three. Hold the vial at eye level and inspect the suspension."
+      require: [{near_face: vial}]
+      hold_s: 1.0
+      forbid:
+        - {when: {near_mouth: vial}, kind: hazard, severity: critical, message: "Hazard - vial at the mouth. Inspect at eye level only.", tts: "Hazard. Inspect the vial at eye level, not at your mouth."}
+      hint: "Raise the bottle in front of your eyes, not your mouth."
+      expected_activity: INSPECT_PAYLOAD
+    - id: S04
+      name: Place vial in tray T1
+      prompt: "Place vial B next to tray T1 and release it."
+      voice: "Step four. Place the vial beside tray T one and release it."
+      require: [{near: [vial, tray]}, {resting: vial}]
+      hold_s: 0.8
+      hint: "Put the bottle down touching the cup or bowl and take your hand away."
+      expected_activity: PLACE_TOOL
+    - id: S05
+      name: Hands clear of payload
+      prompt: "Move both hands clear of the payload."
+      voice: "Final step. Move both hands clear of the payload."
+      require: [{hands_free: true}, {visible: vial}]
+      hold_s: 0.8
+      hint: "Rest your hands away from all objects."
+      expected_activity: RETURN_POSITION

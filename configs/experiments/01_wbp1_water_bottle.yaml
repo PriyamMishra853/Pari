@@ -1,0 +1,14 @@
+experiment:
+  id: WBP-1
+  engine: tuned
+  title: "WBP-1 Crew Hydration Protocol (Water Bottle)"
+  category: Crew health
+  inspired_by: "Gaganyaan crew-health theme: monitored fluid intake in microgravity"
+  rack_id: BENCH-1
+  props: "One water bottle on the table"
+  objects: {bottle: [bottle]}
+  steps:
+    - {id: S01, name: Locate water bottle on table, prompt: "Ensure the water bottle is resting on the table surface.", hint: "Stand the bottle upright on the table, fully in camera view, hands away.", expected_activity: IDLE}
+    - {id: S02, name: Grasp and lift bottle, prompt: "Grasp the water bottle and lift it off the table.", hint: "Hold the bottle firmly and raise it clearly above the table.", expected_activity: GRASP_TOOL}
+    - {id: S03, name: Drink water from bottle, prompt: "Bring the bottle to your mouth and drink water.", hint: "Bring the bottle cap to your lips and hold it there for a moment.", expected_activity: DRINK}
+    - {id: S04, name: Return bottle to table surface, prompt: "Place the water bottle back onto the table surface and release it.", hint: "Put the bottle down on the table and move both hands away from it.", expected_activity: RELEASE_TOOL}
