@@ -37,6 +37,15 @@ def get_landing_page() -> str:
     return "<!doctype html><html><head><title>PARIKSHAK</title></head><body><h1>PARIKSHAK</h1><p>Mission Landing Page</p></body></html>"
 
 
+_SHELL_HEAD = ('<!doctype html><html lang="en" data-theme="dark"><head><meta charset="utf-8">'
+               '<meta name="viewport" content="width=device-width, initial-scale=1, '
+               'viewport-fit=cover"><title>PARIKSHAK Mission Workstation</title>'
+               '<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>'
+               '<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/OrbitControls.js"></script>'
+               '</head><body>')
+_SHELL_TAIL = "</body></html>"
+
+
 def get_console_page(bundle: dict[str, Any] | None = None) -> str:
     """Returns the full experiment workstation console page with bundled data."""
     if not CONSOLE_PAGE.exists():
@@ -48,6 +57,8 @@ def get_console_page(bundle: dict[str, Any] | None = None) -> str:
     if bundle is not None:
         data = json.dumps(bundle, separators=(",", ":")).replace("</", "<\\/")
         body = body.replace("<!--BUNDLE-->", f"<script>window.PARIKSHAK_BUNDLE={data};</script>")
+    if not body.strip().startswith("<!doctype html>"):
+        body = f"{_SHELL_HEAD}{body}{_SHELL_TAIL}"
     return body
 
 
@@ -156,13 +167,30 @@ def create_app():
     def tracker_set_experiment(experiment_id: str) -> dict[str, Any]:
         return tracker_svc.set_experiment(experiment_id)
 
+    @app.post("/api/tracker/set_experiment")
+    async def tracker_set_experiment_json(req: Request) -> dict[str, Any]:
+        data = await req.json()
+        exp_id = str(data.get("experiment_id", "WBP-1"))
+        return tracker_svc.set_experiment(exp_id)
+
     @app.get("/api/tracker/cameras")
     def tracker_list_cameras() -> dict[str, Any]:
         cams = tracker_svc.list_available_cameras()
         return {"cameras": cams}
 
     @app.post("/api/tracker/start_camera")
-    def tracker_start_camera(cam_idx: int = -1) -> dict[str, Any]:
+    async def tracker_start_camera(req: Request) -> dict[str, Any]:
+        cam_idx = -1
+        try:
+            body = await req.json()
+            cam_idx = int(body.get("camera_index", body.get("cam_idx", -1)))
+        except Exception:
+            pass
+        if cam_idx == -1 and "cam_idx" in req.query_params:
+            try:
+                cam_idx = int(req.query_params["cam_idx"])
+            except Exception:
+                pass
         return tracker_svc.start_local_camera(cam_idx)
 
     @app.post("/api/tracker/stop_camera")
@@ -174,6 +202,7 @@ def create_app():
         return tracker_svc.get_camera_frame_b64()
 
     @app.get("/api/tracker/stream")
+    @app.get("/api/tracker/camera_stream")
     def tracker_stream():
         def frame_generator():
             while True:
@@ -189,9 +218,9 @@ def create_app():
     @app.post("/api/tracker/frame")
     async def tracker_process_frame(req: Request) -> dict[str, Any]:
         data = await req.json()
-        b64_image = data.get("image", "")
+        b64_image = data.get("image", "") or data.get("frame", "")
         if not b64_image:
-            raise HTTPException(400, "image base64 string required")
+            raise HTTPException(400, "image or frame base64 string required")
         return tracker_svc.process_client_frame(b64_image)
 
     @app.post("/api/tracker/reset")
@@ -261,20 +290,56 @@ def create_app():
         res["filename"] = file.filename
         return res
 
+    @app.post("/api/tracker/load_demo_video")
+    def tracker_load_demo_video() -> dict[str, Any]:
+        demo_path = ROOT / "runs" / "uploads" / "demo_bottle_run.mp4"
+        if not demo_path.exists():
+            tracker_svc.generate_demo_video(str(demo_path))
+        return tracker_svc.load_video_file(demo_path)
+
     @app.get("/api/tracker/video_frame")
+    @app.get("/api/tracker/next_video_frame")
     def tracker_video_frame() -> dict[str, Any]:
         return tracker_svc.get_next_video_frame()
 
+    @app.post("/api/tracker/simulate")
+    async def tracker_simulate(req: Request) -> dict[str, Any]:
+        data = await req.json()
+        event_name = str(data.get("event", "nominal_step"))
+        return tracker_svc.simulate_event(event_name)
+
     @app.post("/api/tracker/save_recording")
-    async def tracker_save_recording(file: UploadFile = File(...)) -> dict[str, Any]:
+    async def tracker_save_recording(req: Request) -> dict[str, Any]:
         recordings_dir = ROOT / "recordings"
         recordings_dir.mkdir(exist_ok=True)
         timestamp = time.strftime("%Y%m%d_%H%M%S")
+        content_type = req.headers.get("content-type", "")
+        file_bytes = b""
+        filename = ""
+
+        if "multipart/form-data" in content_type:
+            try:
+                form = await req.form()
+                file_item = form.get("file")
+                if file_item is not None and hasattr(file_item, "read"):
+                    filename = getattr(file_item, "filename", "") or ""
+                    file_bytes = await file_item.read()
+            except Exception:
+                pass
+
+        if not file_bytes:
+            file_bytes = await req.body()
+
         exp_id = tracker_svc.experiment_id
-        safe_name = f"RUN_{exp_id}_{timestamp}.webm"
+        if filename:
+            safe_name = Path(filename).name
+            if not safe_name.endswith((".webm", ".mp4", ".mkv", ".avi")):
+                safe_name = f"{safe_name}_{timestamp}.webm"
+        else:
+            safe_name = f"RUN_{exp_id}_{timestamp}.webm"
+
         target_path = recordings_dir / safe_name
-        contents = await file.read()
-        target_path.write_bytes(contents)
+        target_path.write_bytes(file_bytes)
         file_size = target_path.stat().st_size
         return {
             "status": "saved",
