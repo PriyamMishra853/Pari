@@ -5544,11 +5544,21 @@
 
       speechRecognition.onerror = (e) => {
         console.warn("Mic recognition notice:", e.error);
+        // Permission denied or no mic: stop auto-restarting, otherwise onend
+        // restarts immediately and floods the page in a tight loop.
+        if (e.error === "not-allowed" || e.error === "service-not-allowed" || e.error === "audio-capture") {
+          micEnabled = false;
+          if (micDot) micDot.style.background = "#ef4444";
+          if (micStatus) micStatus.textContent = "MIC UNAVAILABLE (permission denied)";
+          if (btnToggleMic) btnToggleMic.textContent = "Enable Mic";
+        }
       };
 
       speechRecognition.onend = () => {
         if (micEnabled) {
-          try { speechRecognition.start(); } catch (_) {}
+          setTimeout(() => {
+            if (micEnabled) try { speechRecognition.start(); } catch (_) {}
+          }, 1000);
         }
       };
 
