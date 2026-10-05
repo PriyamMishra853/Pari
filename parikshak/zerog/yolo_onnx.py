@@ -146,5 +146,7 @@ class OnnxYolo:
             kp = kpts[idx].reshape(-1, 17, 3).copy()
             kp[:, :, 0] = (kp[:, :, 0] - padx) / r
             kp[:, :, 1] = (kp[:, :, 1] - pady) / r
+            kp[:, :, 0] = kp[:, :, 0].clip(0, w)  # clipped to the image, as ultralytics does
+            kp[:, :, 1] = kp[:, :, 1].clip(0, h)
             kp_out = kp.astype(np.float32)
         return _Result(res_boxes, kp_out)

@@ -28,8 +28,8 @@ no mixed-content problem, and the frontend code needs no changes.
 ## 1. Backend on Railway
 
 1. railway.com → **New Project → Deploy from GitHub repo → PriyamMishra853/Pari**.
-2. Railway finds `railway.json` + `Dockerfile` and builds the image (first build ≈ 8–15 min:
-   CPU PyTorch, MediaPipe, OpenCV). No build settings to change.
+2. Railway finds `railway.json` + `Dockerfile` and builds the image (≈ 3–6 min: MediaPipe,
+   OpenCV, ONNX Runtime — no PyTorch). No build settings to change.
 3. Service → **Variables** → add:
 
    | Variable | Value | Required |
@@ -40,9 +40,9 @@ no mixed-content problem, and the frontend code needs no changes.
    | `GROQ_STT_MODEL` | `whisper-large-v3-turbo` | optional (push-to-talk voice) |
    | `PARIKSHAK_DATA_DIR` | `/data` | only with a volume (step 5) |
 
-   Do **not** set `PORT` — Railway injects it; the Dockerfile binds `0.0.0.0:$PORT`.
-4. Service → **Settings → Networking → Generate Domain**. You get
-   `https://<something>.up.railway.app`. Copy it.
+   | `PORT` | `8766` | recommended — makes the app port and the domain's target port match |
+4. Service → **Settings → Networking → Generate Domain**, target port **8766**. You get
+   `https://<something>.up.railway.app` (this project: `https://pari-production.up.railway.app`).
 5. (Recommended) **Persistent storage:** Service → **Volumes → New Volume**, mount path `/data`,
    then set `PARIKSHAK_DATA_DIR=/data`. Without it, recordings, reports, flight logs, datasets
    and custom experiments are deleted on every redeploy.
@@ -52,8 +52,8 @@ no mixed-content problem, and the frontend code needs no changes.
 
 ## 2. Frontend on Vercel
 
-1. Edit **`vercel.json`** in the repo: replace all four `https://YOUR-BACKEND.up.railway.app`
-   with your Railway domain (no trailing slash). Commit and push:
+1. **`vercel.json`** already points at `https://pari-production.up.railway.app`. If your Railway
+   domain changes, replace it in all four rewrites (no trailing slash), then commit and push:
    ```bash
    git add vercel.json
    git commit -m "deploy: point Vercel rewrites at Railway"
@@ -86,7 +86,7 @@ no mixed-content problem, and the frontend code needs no changes.
 | Railway | `GROQ_MODEL` / `GROQ_FALLBACK_MODEL` | chat models (defaults shown above) |
 | Railway | `GROQ_STT_MODEL` | voice-command transcription model |
 | Railway | `PARIKSHAK_DATA_DIR` | volume path for recordings/reports/logs/datasets/custom experiments |
-| Railway | `PORT` | injected by Railway — do not set |
+| Railway | `PORT` | `8766` (keeps app port = domain target port) |
 | Local only | `.env` | same `GROQ_*` keys for `python -m backend.server` (see `.env.example`) |
 | Vercel | — | none; the backend URL lives in `vercel.json` rewrites |
 
@@ -96,9 +96,11 @@ no mixed-content problem, and the frontend code needs no changes.
 |---|---|---|
 | Railway build fails at `pip install mediapipe` / torch | wheel missing for the image's Python/CPU | keep `python:3.11-slim` (tested 3.11); re-run the build (PyTorch index occasionally times out) |
 | Deploy "unhealthy", logs stop at model loading | models take 30–60 s to load; or out of memory | healthcheck timeout is already 300 s; check **Metrics → Memory** |
-| Process killed / restarts, `Killed` in logs | RAM cap: MediaPipe + YOLO + torch need ~1–1.5 GB | use a plan with ≥2 GB RAM (Railway trial limits are too small) |
+| Process killed / restarts, `Killed` in logs | RAM cap (the server needs ~400–700 MB) | check **Metrics → Memory**; give the service ≥1 GB |
 | `ImportError: libGL.so.1` | OpenCV GUI build without system libs | Dockerfile installs `libgl1 libglib2.0-0`; don't remove them |
-| `module 'cv2' has no attribute 'aruco'` → rack never locks | `opencv-python` overwrote the contrib build | Dockerfile reinstalls `opencv-contrib-python` last; keep that line |
+| `module 'cv2' has no attribute 'aruco'` → rack never locks | another OpenCV package overwrote the contrib build | Dockerfile reinstalls `opencv-contrib-python` last; keep that line |
+| **502 "Application failed to respond"** | (a) still building / old failed deploy live, (b) app crashed, (c) domain target port ≠ app port | open **Deployments → View logs**; set `PORT=8766` and the domain target port to 8766; redeploy |
+| Railway installs only `numpy pyyaml jsonschema`, then `No module named fastapi` | Railway built with Railpack from `pyproject.toml` instead of the Dockerfile | keep `railway.json` in the repo root (builder `DOCKERFILE`); in Settings → Build make sure Builder = Dockerfile |
 | Console loads but every button fails (404/502 on `/api/...`) | `vercel.json` still has `YOUR-BACKEND` or a wrong domain | fix the 4 URLs, push, wait for the Vercel redeploy |
 | Video upload fails for big files through Vercel | Vercel proxy body limit ≈ 4.5 MB | upload large videos on the Railway URL (`https://<backend>/console`), or trim the clip |
 | Camera / mic never asks for permission | page not on HTTPS, or opened inside an in-app browser | use the `https://` Vercel/Railway URL in Chrome/Edge |

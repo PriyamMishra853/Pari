@@ -109,12 +109,18 @@ class YoloExperimentTracker:
     def load_models(self) -> None:
         from pathlib import Path
 
-        from ultralytics import YOLO
-
         root = Path(__file__).resolve().parents[2]
-        # ONNX Runtime is ~1.5x faster than PyTorch on this class of CPU.
+        # ONNX Runtime directly (parikshak/zerog/yolo_onnx.py): identical boxes and
+        # keypoints to ultralytics, faster, and no PyTorch needed on the server.
         det_onnx = root / "yolov8n.onnx"
-        self.det_model = YOLO(str(det_onnx), task="detect") if det_onnx.exists() else YOLO(str(root / "yolov8n.pt"))
+        if det_onnx.exists():
+            from parikshak.zerog.yolo_onnx import OnnxYolo
+
+            self.det_model = OnnxYolo(det_onnx, task="detect")
+        else:
+            from ultralytics import YOLO
+
+            self.det_model = YOLO(str(root / "yolov8n.pt"))
         self._pose_onnx = root / "yolov8n-pose.onnx"
         self._pose_pt = root / "yolov8n-pose.pt"
         self._pose_model = None
@@ -134,11 +140,13 @@ class YoloExperimentTracker:
     @property
     def pose_model(self):
         if self._pose_model is None:
-            from ultralytics import YOLO
-
             if self._pose_onnx.exists():
-                self._pose_model = YOLO(str(self._pose_onnx), task="pose")
+                from parikshak.zerog.yolo_onnx import OnnxYolo
+
+                self._pose_model = OnnxYolo(self._pose_onnx, task="pose")
             else:
+                from ultralytics import YOLO
+
                 self._pose_model = YOLO(str(self._pose_pt))
         return self._pose_model
 

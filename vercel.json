@@ -6,10 +6,10 @@
   "outputDirectory": "frontend",
   "cleanUrls": true,
   "rewrites": [
-    { "source": "/api/:path*", "destination": "https://YOUR-BACKEND.up.railway.app/api/:path*" },
-    { "source": "/recordings/:path*", "destination": "https://YOUR-BACKEND.up.railway.app/recordings/:path*" },
-    { "source": "/reports/:path*", "destination": "https://YOUR-BACKEND.up.railway.app/reports/:path*" },
-    { "source": "/tags", "destination": "https://YOUR-BACKEND.up.railway.app/tags" },
+    { "source": "/api/:path*", "destination": "https://pari-production.up.railway.app/api/:path*" },
+    { "source": "/recordings/:path*", "destination": "https://pari-production.up.railway.app/recordings/:path*" },
+    { "source": "/reports/:path*", "destination": "https://pari-production.up.railway.app/reports/:path*" },
+    { "source": "/tags", "destination": "https://pari-production.up.railway.app/tags" },
     { "source": "/presentation", "destination": "/sih_presentation.html" },
     { "source": "/app", "destination": "/console.html" },
     { "source": "/workspace", "destination": "/console.html" }
