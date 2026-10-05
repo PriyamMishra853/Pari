@@ -411,8 +411,20 @@ def create_app():
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Start the PARIKSHAK mission server.")
-    ap.add_argument("--port", type=int, default=8766)
-    ap.add_argument("--host", type=str, default="127.0.0.1")
+    import os
+
+    # On a cloud host (Railway, Render, Docker) PORT is injected: listen on it, on
+    # all interfaces, whatever start command was configured. Locally: 127.0.0.1:8766.
+    cloud = bool(os.environ.get("PORT"))
+    env_port = int(os.environ.get("PORT") or 8766)
+
+    def port_arg(value: str) -> int:
+        # A start command run without a shell passes "$PORT" through unexpanded.
+        value = os.path.expandvars(value)
+        return int(value) if value.isdigit() else env_port
+
+    ap.add_argument("--port", type=port_arg, default=env_port)
+    ap.add_argument("--host", type=str, default=os.environ.get("HOST") or ("0.0.0.0" if cloud else "127.0.0.1"))
     ap.add_argument("--no-browser", action="store_true", help="Do not open a browser tab automatically")
     args = ap.parse_args(argv)
 
