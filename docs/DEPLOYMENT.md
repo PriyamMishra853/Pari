@@ -68,6 +68,10 @@ no mixed-content problem, and the frontend code needs no changes.
 
 ## 3. Smoke test after deploy
 
+Live backend verified on 5 Oct 2026: `https://pari-production.up.railway.app` — all pages 200,
+pose backend RUNNING, YOLO on ONNX Runtime, Groq available, frames processed in 160–320 ms server-side.
+
+
 | Check | Expected |
 |---|---|
 | `https://<vercel>/` | landing page, scroll → ship lands on the moon |
@@ -109,7 +113,7 @@ no mixed-content problem, and the frontend code needs no changes.
 | `model_not_found` from Groq | Groq retired a model | set `GROQ_MODEL` to a current model from console.groq.com/docs/models |
 | Two people use the site at once and steps jump | the server holds **one** live session (one operator, one rack) | demo with one browser tab at a time; reset the procedure before your run |
 | Recordings/logs vanish after redeploy | no volume | add the volume + `PARIKSHAK_DATA_DIR` (section 1, step 5) |
-| Low FPS online (1–3 fps) vs local | every frame travels browser → Vercel → Railway on shared CPU | expected on a shared CPU; for the demo video record against the **local** server |
+| Low FPS online (≈1 fps) vs local | server work is only 160–320 ms/frame (measured), the rest is network: each frame uploads ~40 KB and downloads ~35 KB | Railway → Settings → **Region: Southeast Asia (Singapore)** (closest to India); use the Railway URL directly instead of Vercel to skip one hop; record the demo video against the **local** server |
 | Rack frame never LOCKED | no AprilTag in view, tag too small/blurred, or wrong tag size | print tag 10 from `/tags`, keep it near the middle of the view, set **Tag size** in System tab |
 
 ## 6. Run locally (unchanged)
