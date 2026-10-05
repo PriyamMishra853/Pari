@@ -170,6 +170,12 @@ class RunLogger:
                 lines.append(f"{t:8.1f}s  UNVERIFIED  {p['step_id']:<10} {p['text']}")
             elif kind == "operator_override":
                 lines.append(f"{t:8.1f}s  OVERRIDE    {p['step_id']:<10} token={p['token']!r}")
+            elif kind == "copilot":
+                lines.append(f"{t:8.1f}s  COPILOT     {p.get('step_id', ''):<10} "
+                             f"[{p.get('source', '')}] {p.get('text', '')}")
+            elif kind == "stall":
+                lines.append(f"{t:8.1f}s  STALLED     {p.get('step_id', ''):<10} "
+                             f"no progress {p.get('idle_s', '?')} s; missing: {', '.join(p.get('unmet', []))}")
             elif kind == "run_end":
                 lines.append("-" * 78)
                 for key, value in p.items():

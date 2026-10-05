@@ -296,6 +296,8 @@ body.present .lower{display:none}
     </div>
     <div class="tabpane" data-pane="records">
       <div class="row" style="margin-bottom:10px"><button class="btn primary" id="btnReport">Generate witness report</button><span class="note" id="repStatus"></span></div>
+      <h3 class="mono" style="font-size:12px;color:var(--muted)">FLIGHT LOGS (hash-chained, one per session — verified on load)</h3>
+      <table style="margin-bottom:14px"><thead><tr><th>Log</th><th>Records</th><th>Integrity</th><th></th></tr></thead><tbody id="logRows"></tbody></table>
       <div class="grid2"><div><h3 class="mono" style="font-size:12px;color:var(--muted)">REPORTS</h3><table><tbody id="repRows"></tbody></table></div>
       <div><h3 class="mono" style="font-size:12px;color:var(--muted)">RECORDINGS</h3><table><tbody id="recRows"></tbody></table></div></div>
     </div>
@@ -317,6 +319,18 @@ body.present .lower{display:none}
   <div class="box">
     <header><b style="font:700 16px var(--head)">New experiment</b><div class="row"><button class="btn sm" id="bCancel">Cancel</button><button class="btn sm primary" id="bCreate">Create &amp; load</button></div></header>
     <section>
+      <div class="seg" role="group" aria-label="Create from" style="margin-bottom:12px">
+        <button class="on" data-bmode="text">✍ Describe in words</button><button data-bmode="video">🎬 From a demonstration video</button><button data-bmode="manual">⚙ Build manually</button>
+      </div>
+      <div id="bModeText" class="b-step">
+        <label class="f">Describe the procedure (one step per sentence)<textarea id="bText" rows="4" style="width:100%;background:var(--panel2);color:var(--fg);border:1px solid var(--line2);border-radius:9px;padding:8px;font:inherit" placeholder="Pick up the bottle. Shake it three times. Hold it at eye level to inspect. Pour it into the cup. Put the bottle down."></textarea></label>
+        <div class="row" style="margin-top:8px"><button class="btn sm primary" id="bGenText">Generate steps</button><span class="note" id="bTextNote">Groq turns the description into checks the camera can verify; offline, a keyword parser does.</span></div>
+      </div>
+      <div id="bModeVideo" class="b-step" style="display:none">
+        <div class="row"><input type="file" id="bVideo" accept="video/*"><button class="btn sm primary" id="bGenVideo">Analyse video</button></div>
+        <div class="progress"><i id="bVideoBar"></i></div><span class="note" id="bVideoNote">Record yourself doing the procedure once (5–60 s, objects clearly in view). The pipeline segments it into steps and keeps the labelled frames as a dataset.</span>
+      </div>
+      <p class="note" style="margin:10px 0 6px">Review and edit the generated experiment below, then <b>Create &amp; load</b> — it appears in the experiment menu immediately.</p>
       <div class="grid2">
         <label class="f">Title<input type="text" id="bTitle" placeholder="e.g. Sample tube handling"></label>
         <label class="f">Category<input type="text" id="bCat" placeholder="e.g. Space biology"></label>
@@ -378,8 +392,23 @@ function renderExpMeta() {
 }
 $('#expSelect').addEventListener('change', async (ev) => {
   const tel = await api.post('/api/experiments/select', { experiment_id: ev.target.value });
-  S.feedIds.clear(); $('#feed').innerHTML = ''; renderExpMeta(); applyTelemetry(tel, true);
+  S.feedIds.clear(); S.feedSeen = 0; $('#feed').innerHTML = ''; renderExpMeta(); applyTelemetry(tel, true);
 });
+
+// ============================================================ chunked upload
+// Vercel's proxy rejects request bodies over ~4.5 MB; send 3 MB chunks.
+async function uploadChunked(blob, filename, purpose, onProgress) {
+  const id = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()).replace(/[^A-Za-z0-9]/g, '').slice(0, 24);
+  const CH = 3 * 1024 * 1024, n = Math.max(1, Math.ceil(blob.size / CH));
+  for (let i = 0; i < n; i++) {
+    const fd = new FormData(); fd.append('upload_id', id); fd.append('index', String(i)); fd.append('file', blob.slice(i * CH, (i + 1) * CH), 'chunk');
+    const r = await fetch('/api/upload/chunk', { method: 'POST', body: fd });
+    if (!r.ok) throw new Error(`upload failed at part ${i + 1}/${n}`);
+    onProgress?.((i + 1) / n);
+  }
+  return api.post('/api/upload/finish', { upload_id: id, filename, purpose });
+}
+function downloadBlob(blob, name) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000); }
 
 // ==================================================================== camera
 const video = $('#video'), frameImg = $('#videoFrame'), overlay = $('#overlay'), octx = overlay.getContext('2d');
@@ -393,8 +422,7 @@ $$('.seg button').forEach(b => b.addEventListener('click', () => {
 $('#fileVideo').addEventListener('change', async (ev) => {
   const f = ev.target.files[0]; if (!f) return;
   stopCamera(); toast('Uploading video…');
-  const fd = new FormData(); fd.append('file', f);
-  const r = await fetch('/api/video/upload', { method: 'POST', body: fd }).then(r => r.json());
+  let r; try { r = await uploadChunked(f, f.name, 'video', p => toast(`Uploading video… ${Math.round(p * 100)}%`)); } catch (e) { toast(e.message); return; }
   if (r.error) { toast(r.error); return; }
   setSource('video'); toast(`Loaded ${r.filename}: ${r.duration_s}s @ ${fmt(r.fps, 0)} fps — same pipeline as the webcam`);
   startVideoLoop(); ev.target.value = '';
@@ -411,6 +439,7 @@ async function startCamera() {
 }
 function stopCamera() {
   S.running = false;
+  if (S.recording) S.recording.stop(); // never leave a recorder drawing an empty canvas
   if (S.stream) { S.stream.getTracks().forEach(t => t.stop()); S.stream = null; }
   if (S.source === 'video') api.post('/api/video/stop').catch(() => {});
   video.srcObject = null; $('#placeholder').style.display = 'grid'; updateCamButton();
@@ -427,20 +456,33 @@ function captureFrame() {
   gctx.drawImage(video, sx, sy, sw, sh, 0, 0, 640, 480);
   return grab.toDataURL('image/jpeg', 0.72);
 }
+// Frames in flight: 1 when the server is the bottleneck (local), 2 when the
+// network is (Railway/Vercel) - then upload of frame N+1 overlaps processing of N.
+const FL = { inflight: 0, seq: 0, applied: 0, maxInflight: 1, netMs: 0 };
+async function sendFrame() {
+  const img = captureFrame(); if (!img) return;
+  const my = ++FL.seq; FL.inflight++; const t0 = performance.now();
+  try {
+    const r = await api.post('/api/frame', { image: img, feed_after: S.feedSeen });
+    const rtt = performance.now() - t0, srv = r.telemetry?.zerog?.perf?.total_ms || rtt;
+    FL.netMs = 0.8 * FL.netMs + 0.2 * Math.max(0, rtt - srv);
+    FL.maxInflight = FL.netMs > 150 ? 2 : 1;
+    if (my > FL.applied && r.telemetry) { FL.applied = my; applyTelemetry(r.telemetry); }
+  } catch (e) { toast('Frame error: ' + e.message); await new Promise(r => setTimeout(r, 800)); }
+  finally { FL.inflight--; }
+}
 async function frameLoop() {
   while (S.running && S.source === 'webcam') {
-    const img = captureFrame();
-    if (!img) { await new Promise(r => setTimeout(r, 100)); continue; }
-    try { const r = await api.post('/api/frame', { image: img }); if (r.telemetry) applyTelemetry(r.telemetry); }
-    catch (e) { toast('Frame error: ' + e.message); await new Promise(r => setTimeout(r, 800)); }
+    if (FL.inflight < FL.maxInflight && video.videoWidth) sendFrame();
+    await new Promise(r => setTimeout(r, 25));
   }
 }
 async function startVideoLoop() {
   S.running = true; $('#placeholder').style.display = 'none'; video.style.display = 'none'; frameImg.style.display = 'block'; updateCamButton();
   while (S.running && S.source === 'video') {
-    let r; try { r = await api.get('/api/video/next'); } catch (e) { toast(e.message); break; }
+    let r; try { r = await api.get(`/api/video/next?feed_after=${S.feedSeen}`); } catch (e) { toast(e.message); break; }
     if (r.error) { toast(r.error); break; }
-    if (r.is_eof) { toast('Video finished'); break; }
+    if (r.is_eof) { toast('Video finished'); if (S.recording) S.recording.stop(); break; }
     frameImg.src = r.frame; applyTelemetry(r.telemetry);
   }
   S.running = false; updateCamButton();
@@ -550,7 +592,7 @@ function applyTelemetry(tel, fresh = false) {
 function renderFeed(feed, fresh) {
   const box = $('#feed'); let added = false;
   for (const m of feed) {
-    if (S.feedIds.has(m.id)) continue; S.feedIds.add(m.id); added = true;
+    if (S.feedIds.has(m.id)) continue; S.feedIds.add(m.id); added = true; S.feedSeen = Math.max(S.feedSeen, m.id);
     const isGroq = (m.source || '').startsWith('groq');
     const node = el('div', { class: `msg ${m.type} ${m.severity || ''}` },
       el('div', { class: 'mh' }, el('span', { text: m.title }), el('span', {}, el('span', { class: 'src' + (isGroq ? ' groq' : ''), text: isGroq ? m.source.replace('groq:', 'Groq · ') + (m.latency_ms ? ` · ${m.latency_ms} ms` : '') : m.source }))),
@@ -831,7 +873,12 @@ async function loadDatasets() { const r = await api.get('/api/dataset'); const r
 // ========================================================= reports/recordings
 $('#btnReport').addEventListener('click', async () => { $('#repStatus').textContent = 'Generating…'; try { const r = await api.post('/api/tracker/generate_report'); $('#repStatus').textContent = 'Saved.'; loadRecords(); } catch (e) { $('#repStatus').textContent = e.message; } });
 async function loadRecords() {
-  const [rp, rc] = await Promise.all([api.get('/api/tracker/reports'), api.get('/api/tracker/recordings')]);
+  const [rp, rc, lg] = await Promise.all([api.get('/api/tracker/reports'), api.get('/api/tracker/recordings'), api.get('/api/logs')]);
+  const lr = $('#logRows'); lr.innerHTML = '';
+  for (const f of lg.logs.slice(0, 12)) lr.append(el('tr', {}, el('td', { text: f.name + (f.name === lg.current ? '  (current)' : '') }), el('td', { text: String(f.records) }),
+    el('td', {}, el('span', { class: 'badge ' + (f.verified ? 'ok' : 'bad'), text: f.verified ? 'CHAIN INTACT' : 'TAMPERED', title: f.message })),
+    el('td', {}, el('a', { href: `/api/logs/${encodeURIComponent(f.name)}`, text: 'jsonl' }), ' · ', f.text_name ? el('a', { href: `/api/logs/${encodeURIComponent(f.text_name)}`, target: '_blank', text: 'text' }) : '')));
+  if (!lg.logs.length) lr.append(el('tr', {}, el('td', { colspan: 4, class: 'note', text: 'No flight logs yet — a log is written as soon as a step completes or an alert fires.' })));
   const a = $('#repRows'); a.innerHTML = ''; for (const f of rp.reports.slice(0, 12)) a.append(el('tr', {}, el('td', {}, el('a', { href: f.url, target: '_blank', text: f.name })), el('td', { text: `${f.size_kb} KB` })));
   if (!rp.reports.length) a.append(el('tr', {}, el('td', { class: 'note', text: 'No reports yet.' })));
   const b = $('#recRows'); b.innerHTML = ''; for (const f of rc.recordings.slice(0, 12)) b.append(el('tr', {}, el('td', {}, el('a', { href: f.url, target: '_blank', text: f.name })), el('td', { text: `${f.size_mb} MB` }), el('td', {}, el('button', { class: 'btn sm', text: 'Run through pipeline', onclick: async () => { stopCamera(); const r = await api.post(`/api/video/recording/${encodeURIComponent(f.name)}`); if (r.error) return toast(r.error); setSource('video'); startVideoLoop(); window.scrollTo({ top: 0, behavior: 'smooth' }); } }))));
@@ -861,8 +908,15 @@ async function toggleRecording() {
   const stream = recCanvas.captureStream(24); const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm';
   const mr = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 3_000_000 }); const chunks = [];
   mr.ondataavailable = e => e.data.size && chunks.push(e.data);
-  mr.onstop = async () => { S.recording = null; b.textContent = '⏺ Record'; b.classList.remove('danger'); const blob = new Blob(chunks, { type: 'video/webm' }); const fd = new FormData(); const name = `PARIKSHAK_${S.tel?.experiment_id || 'RUN'}_${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.webm`; fd.append('file', blob, name);
-    const r = await fetch('/api/tracker/save_recording', { method: 'POST', body: fd }).then(r => r.json()).catch(() => null); toast(r ? `Saved ${r.filename} (${r.size_mb} MB) — see Reports & recordings` : 'Upload failed', 5000); };
+  mr.onstop = async () => {
+    S.recording = null; b.textContent = '⏺ Record'; b.classList.remove('danger');
+    if (!chunks.length) { toast('Recording was empty — nothing saved'); return; }
+    const blob = new Blob(chunks, { type: 'video/webm' });
+    const name = `PARIKSHAK_${S.tel?.experiment_id || 'RUN'}_${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.webm`;
+    downloadBlob(blob, name); // a local copy is always kept, even if the upload fails
+    try { const r = await uploadChunked(blob, name, 'recording', p => toast(`Saving recording to server… ${Math.round(p * 100)}%`)); toast(`Saved ${r.filename} (${r.size_mb} MB) — downloaded and stored on the server`, 5000); }
+    catch (e) { toast(`Downloaded ${name}. Server copy failed: ${e.message}`, 6000); }
+  };
   mr.start(1000); S.recording = mr; b.textContent = '■ Stop recording'; b.classList.add('danger'); requestAnimationFrame(composeRecFrame);
 }
 $('#btnRecord').addEventListener('click', toggleRecording);
@@ -901,11 +955,42 @@ const TPL = [
 let BCLS = [], BCHECKS = {};
 async function openBuilder() {
   if (!BCLS.length) { const r = await api.get('/api/experiments/object_classes'); BCLS = r.classes; BCHECKS = r.checks; }
-  $('#bObjects').innerHTML = ''; $('#bSteps').innerHTML = ''; $('#bErr').textContent = ''; $('#bTitle').value = ''; $('#bCat').value = '';
-  addObj('item', 'bottle'); const sel = $('#bTemplate'); sel.innerHTML = ''; TPL.forEach((t, i) => sel.append(el('option', { value: i, text: t[0].replace('{a}', 'A').replace('{b}', 'B') })));
+  $('#bObjects').innerHTML = ''; $('#bSteps').innerHTML = ''; $('#bErr').textContent = ''; $('#bTitle').value = ''; $('#bCat').value = ''; BJOB = null;
+  $('#bVideoBar').style.width = '0'; addObj('item', 'bottle'); const sel = $('#bTemplate'); sel.innerHTML = ''; TPL.forEach((t, i) => sel.append(el('option', { value: i, text: t[0].replace('{a}', 'A').replace('{b}', 'B') })));
   $('#builder').classList.add('on');
 }
 function closeBuilder() { $('#builder').classList.remove('on'); }
+let BJOB = null;
+$$('[data-bmode]').forEach(b => b.addEventListener('click', () => {
+  $$('[data-bmode]').forEach(x => x.classList.toggle('on', x === b));
+  $('#bModeText').style.display = b.dataset.bmode === 'text' ? '' : 'none'; $('#bModeVideo').style.display = b.dataset.bmode === 'video' ? '' : 'none';
+}));
+function fillBuilder(d) {
+  $('#bTitle').value = d.title || ''; $('#bCat').value = d.category || '';
+  $('#bObjects').innerHTML = ''; for (const [a, cl] of Object.entries(d.objects || {})) addObj(a, cl[0]);
+  $('#bSteps').innerHTML = ''; for (const st of d.steps || []) addStep(st.name, st.prompt, st.require, st.hint || '');
+  $$('#bSteps .b-step').forEach((box, i) => { const hold = box.querySelector('input[type=number]'); if (hold && d.steps[i]?.hold_s) hold.value = d.steps[i].hold_s; });
+}
+$('#bGenText').addEventListener('click', async () => {
+  const b = $('#bGenText'); b.disabled = true; b.textContent = 'Generating…'; $('#bErr').textContent = ''; BJOB = null;
+  try { const d = await api.post('/api/experiments/draft_from_text', { text: $('#bText').value }); fillBuilder(d);
+    $('#bTextNote').textContent = `${d.steps.length} steps · source: ${d.source}${d.latency_ms ? ` · ${d.latency_ms} ms` : ''}${d.steps.length ? '' : ' — try naming objects and actions more explicitly'}`; }
+  catch (e) { $('#bErr').textContent = e.message; }
+  b.disabled = false; b.textContent = 'Generate steps';
+});
+$('#bGenVideo').addEventListener('click', async () => {
+  const f = $('#bVideo').files[0]; if (!f) { $('#bErr').textContent = 'Choose a video first.'; return; }
+  const b = $('#bGenVideo'); b.disabled = true; $('#bErr').textContent = ''; const bar = $('#bVideoBar'), note = $('#bVideoNote');
+  try {
+    const up = await uploadChunked(f, f.name, 'draft_video', p => { bar.style.width = `${p * 30}%`; note.textContent = `Uploading… ${Math.round(p * 100)}%`; });
+    BJOB = up.job_id;
+    for (;;) { await new Promise(r => setTimeout(r, 1000)); const j = await api.get(`/api/experiments/draft_job/${BJOB}`);
+      bar.style.width = `${30 + j.progress * 70}%`; note.textContent = j.message;
+      if (j.status === 'done') { fillBuilder(j.draft); note.textContent = `${j.draft.steps.length} steps from ${j.draft.frames_analysed} frames · objects seen: ${Object.keys(j.draft.object_counts || {}).join(', ') || 'none'}`; break; }
+      if (j.status === 'failed') { $('#bErr').textContent = j.message; BJOB = null; break; } }
+  } catch (e) { $('#bErr').textContent = e.message; BJOB = null; }
+  b.disabled = false;
+});
 function objAliases() { return $$('#bObjects .row').map(r => r.querySelector('input').value.trim().toLowerCase().replace(/[^a-z0-9_]+/g, '_')).filter(Boolean); }
 function addObj(alias = '', cls = 'bottle') {
   const s = el('select'); BCLS.forEach(c => s.append(el('option', { value: c, text: c }))); s.value = cls;
@@ -913,9 +998,12 @@ function addObj(alias = '', cls = 'bottle') {
   $('#bObjects').append(row);
 }
 function checkRow(pred = 'visible', arg = '') {
+  let negated = false;
+  if (pred === 'not' && arg && typeof arg === 'object') { negated = true; [pred, arg] = Object.entries(arg)[0]; }
   const ps = el('select'); Object.entries(BCHECKS).forEach(([k, v]) => ps.append(el('option', { value: k, text: v.replace(/\{a\}|\{b\}/g, '…').replace(/\(\s*…\s*\)/, '') + ` [${k}]` }))); ps.value = pred;
   const a = el('input', { type: 'text', placeholder: 'object / value', value: Array.isArray(arg) ? arg[0] : String(arg ?? '') }); const b = el('input', { type: 'text', placeholder: 'second object', value: Array.isArray(arg) ? arg[1] : '' });
-  const row = el('div', { class: 'b-check' }, ps, a, b, el('button', { class: 'btn sm ghost', text: '✕', onclick: () => row.remove() }));
+  const neg = el('input', { type: 'checkbox', title: 'NOT — the step needs this to be false' }); neg.checked = negated;
+  const row = el('div', { class: 'b-check' }, el('label', { class: 'switch', title: 'negate' }, neg, 'not'), ps, a, b, el('button', { class: 'btn sm ghost', text: '✕', onclick: () => row.remove() }));
   const sync = () => { b.style.display = ['near', 'inside'].includes(ps.value) ? '' : 'none'; }; ps.addEventListener('change', sync); sync(); return row;
 }
 function addStep(name = '', prompt = '', checks = [], hint = '') {
@@ -932,13 +1020,14 @@ $('#bAddTpl').addEventListener('click', () => { const t = TPL[+$('#bTemplate').v
 $('#bCreate').addEventListener('click', async () => {
   const objects = {}; $$('#bObjects .row').forEach(r => { const a = r.querySelector('input').value.trim().toLowerCase().replace(/[^a-z0-9_]+/g, '_'); if (a) objects[a] = [r.querySelector('select').value]; });
   const steps = $$('#bSteps .b-step').map(s => { const ins = s.querySelectorAll(':scope > .row input'); return { name: ins[0].value, hold_s: parseFloat(ins[1].value) || 0.8, prompt: ins[2].value, hint: ins[3].value,
-    require: [...s.querySelectorAll('.b-check')].map(c => { const [p, a, b] = c.querySelectorAll('select,input'); const k = p.value; let v = a.value.trim();
+    require: [...s.querySelectorAll('.b-check')].map(c => { const neg = c.querySelector('input[type=checkbox]').checked; const p = c.querySelector('select'); const [a, b] = c.querySelectorAll('input[type=text]'); const k = p.value; let v = a.value.trim();
       if (['near', 'inside'].includes(k)) v = [v, b.value.trim()]; else if (['upright', 'inclined', 'curl_reps'].includes(k)) v = parseFloat(v) || (k === 'curl_reps' ? 3 : 20); else if (['person', 'rack_frame', 'hands_free'].includes(k)) v = true; else if (['hands_above_head', 'wrist_above_shoulder', 'elbow_flexed', 'arms_extended'].includes(k)) v = v || 'any';
-      return { [k]: v }; }) }; });
-  try { const r = await api.post('/api/experiments/custom', { title: $('#bTitle').value, category: $('#bCat').value, objects, steps });
+      return neg ? { not: { [k]: v } } : { [k]: v }; }) }; });
+  if (!steps.length) { $('#bErr').textContent = 'Add or generate at least one step.'; return; }
+  try { const r = await api.post('/api/experiments/custom', { title: $('#bTitle').value, category: $('#bCat').value, objects, steps, from_job: BJOB });
     closeBuilder(); await loadExperiments(r.experiment_id); applyTelemetry(await api.post('/api/experiments/select', { experiment_id: r.experiment_id }), true);
     if ($('#bRecord').checked) renderDatasetStatus(await api.post('/api/dataset/start', { every: 3 }));
-    toast(`Created ${r.experiment_id} — ${r.steps.length} steps. ${$('#bRecord').checked ? 'Dataset recording armed.' : ''}`, 5000);
+    toast(`Created ${r.experiment_id} — ${r.steps.length} steps.${r.dataset_dir ? ' Labelled frames from the video saved as a dataset.' : ''} ${$('#bRecord').checked ? 'Dataset recording armed.' : ''}`, 6000);
   } catch (e) { $('#bErr').textContent = e.message; }
 });
 

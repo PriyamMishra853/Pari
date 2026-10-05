@@ -82,7 +82,7 @@ class DatasetRecorder:
     def add(self, view: np.ndarray | None, tel: dict[str, Any]) -> None:
         if not self.active or self._fh is None:
             return
-        z = tel.get("zerog", {})
+        z = tel.get("zerog") or {}
         w = z.get("world", {})
         rec = {
             "i": self.n,

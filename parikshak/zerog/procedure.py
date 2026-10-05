@@ -65,6 +65,7 @@ class ObjState:
     rest_h: float | None = None
     rest_aspect: float | None = None
     rest_since: float | None = None
+    last_in_hand: float = -1e9
     hist: deque = field(default_factory=lambda: deque(maxlen=30))  # (t, cx, cy)
 
     def visible(self, t: float) -> bool:
@@ -122,7 +123,8 @@ class Facts:
         o = self.obj(a)
         if o is None:
             return False
-        pad = max(22.0, 0.30 * o.ext)
+        # measured: hand gripping a bottle 0 px from its box, hand resting beside it 30 px
+        pad = max(12.0, 0.10 * o.ext)
         eb = _expand(o.box, pad)
         return any(_inside(h, eb) for h in self.hands())
 
@@ -148,8 +150,16 @@ class Facts:
 
     def near_mouth(self, a):
         o, m = self.obj(a), self.pose.get("mouth")
-        if o is None or m is None:
+        if m is None:
             return False
+        if o is None:
+            # at the lips the object is usually hidden by the hand and face: it
+            # counts if it was held moments ago and a hand is now at the mouth
+            st = self.objects.get(a)
+            sw = self.pose.get("shoulder_px", 120.0)
+            if st is None or self.t - st.last_in_hand > 1.5:
+                return False
+            return any(math.hypot(h[0] - m[0], h[1] - m[1]) < 0.7 * sw for h in self.hands())
         sw = self.pose.get("shoulder_px", 120.0)
         x1, y1, x2, y2 = o.box
         top = ((x1 + x2) / 2.0, y1)
@@ -603,6 +613,9 @@ class GenericTracker:
                     o.rest_aspect = asp if o.rest_aspect is None else 0.8 * o.rest_aspect + 0.2 * asp
             else:
                 o.rest_since = None
+        for alias in self.objs:
+            if facts.in_hand(alias):
+                self.objs[alias].last_in_hand = t
         self.engine.update(facts, t, dt)
 
         self.overlay_objects = []

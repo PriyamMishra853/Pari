@@ -29,7 +29,7 @@ def experiment_state(tel: dict[str, Any], spec: dict[str, Any] | None, event: di
             "hint": sp.get("hint"), "expected_activity": sp.get("expected_activity"),
         }
 
-    z = tel.get("zerog", {})
+    z = tel.get("zerog") or {}
     body, har, status = z.get("body", {}), z.get("har", {}), z.get("status", {})
     edges = [e for e in z.get("interaction_graph", {}).get("edges", []) if e.get("from") in ("left_hand", "right_hand")]
     edges = sorted(edges, key=lambda e: e["distance_m"])[:3]
@@ -57,8 +57,31 @@ def experiment_state(tel: dict[str, Any], spec: dict[str, Any] | None, event: di
 
 
 class CopilotReasoner:
+    CACHE_TTL_S = 90.0
+
     def __init__(self, client: GroqClient | None = None) -> None:
         self.client = client or get_client()
+        self._cache: dict[tuple, tuple[float, dict[str, Any]]] = {}
+
+    def _key(self, kind: str, state: dict[str, Any]) -> tuple:
+        s = state.get("active_step") or {}
+        return (kind, (state.get("experiment") or {}).get("id"), s.get("id"), tuple(s.get("unmet_checks") or []),
+                state.get("astronaut"))
+
+    def _cached(self, kind: str, state: dict[str, Any], compute) -> dict[str, Any]:
+        """Same step + same missing checks -> same advice: answer instantly from cache."""
+        import time as _t
+
+        k = self._key(kind, state)
+        hit = self._cache.get(k)
+        if hit and _t.time() - hit[0] < self.CACHE_TTL_S:
+            return {**hit[1], "cached": True}
+        r = compute()
+        if str(r.get("source", "")).startswith("groq"):
+            self._cache[k] = (_t.time(), r)
+            if len(self._cache) > 200:
+                self._cache.pop(next(iter(self._cache)))
+        return r
 
     def _ask(self, template: str, state: dict[str, Any], interactive: bool = False, **kw: Any):
         """interactive=True (a button / voice request): one model, 4 s budget, then local rules."""
@@ -69,6 +92,9 @@ class CopilotReasoner:
 
     # -------------------------------------------------------------- actions
     def guidance(self, state: dict[str, Any]) -> dict[str, Any]:
+        return self._cached("guidance", state, lambda: self._guidance(state))
+
+    def _guidance(self, state: dict[str, Any]) -> dict[str, Any]:
         idle = (state.get("event") or {}).get("idle_s", "several")
         data, meta = self._ask(prompts.GUIDANCE, state, idle_s=idle)
         if data and data.get("spoken"):
@@ -82,6 +108,9 @@ class CopilotReasoner:
         return {**self._local_review(state), **meta, "source": "local-rules"}
 
     def next_step(self, state: dict[str, Any]) -> dict[str, Any]:
+        return self._cached("next", state, lambda: self._next_step(state))
+
+    def _next_step(self, state: dict[str, Any]) -> dict[str, Any]:
         data, meta = self._ask(prompts.NEXT, state, interactive=True)
         if data and data.get("spoken"):
             return {**data, **meta}

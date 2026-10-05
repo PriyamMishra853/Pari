@@ -22,6 +22,7 @@ import webbrowser
 from pathlib import Path
 from typing import Any
 
+from fastapi import File, Form, UploadFile  # module level: FastAPI resolves these annotations from module globals
 from starlette.requests import Request
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -79,7 +80,7 @@ so the camera sees it together with you. One tag gives the full 6-DoF rack pose;
 
 
 def create_app():
-    from fastapi import FastAPI, File, HTTPException, UploadFile
+    from fastapi import FastAPI, HTTPException
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.responses import FileResponse, HTMLResponse, Response
     from fastapi.staticfiles import StaticFiles
@@ -88,12 +89,15 @@ def create_app():
     from backend.voice import COMMANDS, LABELS, match, whisper_prompt
     from parikshak.perception.tracker_service import get_tracker_service
     from parikshak.zerog.dataset import DatasetRecorder
-    from parikshak.zerog.paths import RECORDINGS, REPORTS, UPLOADS
+    from parikshak.zerog.paths import DATASETS, LOGS, RECORDINGS, REPORTS, UPLOADS
 
     app = FastAPI(title="PARIKSHAK Mission Server", docs_url="/api/docs", redoc_url=None)
     app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
     svc = get_tracker_service()
+    from parikshak.zerog.hardware import gpu_info
+
+    threading.Thread(target=gpu_info, daemon=True).start()  # warm the (slow) OS GPU query
 
     for name, p in (("static", FRONTEND_DIR / "static"), ("recordings", RECORDINGS), ("reports", REPORTS)):
         p.mkdir(parents=True, exist_ok=True)
@@ -201,6 +205,84 @@ def create_app():
     def select_experiment_path(experiment_id: str) -> dict[str, Any]:
         return svc.set_experiment(experiment_id)
 
+    @app.post("/api/experiments/draft_from_text")
+    async def draft_from_text(req: Request) -> dict[str, Any]:
+        from parikshak.zerog.autogen import draft_from_text as _draft
+
+        text = str((await body(req)).get("text", "")).strip()
+        if len(text) < 8:
+            raise HTTPException(400, "Describe the procedure in at least one sentence.")
+        return _draft(text, set(svc.object_classes()))
+
+    @app.get("/api/experiments/draft_job/{job_id}")
+    def draft_job(job_id: str) -> dict[str, Any]:
+        from parikshak.zerog.autogen import JOBS
+
+        job = JOBS.get(job_id)
+        if job is None:
+            raise HTTPException(404, "unknown job")
+        out = {k: v for k, v in job.items() if k != "draft"}
+        if job.get("draft"):
+            out["draft"] = {k: v for k, v in job["draft"].items() if k != "_samples"}
+        return out
+
+    # ------------------------------------------------- chunked uploads
+    # Vercel's proxy caps request bodies at ~4.5 MB; recordings and videos go up
+    # in 3 MB chunks and are assembled here.
+    CHUNKS = UPLOADS / "_chunks"
+    CHUNKS.mkdir(parents=True, exist_ok=True)
+
+    def _chunk_path(upload_id: str) -> Path:
+        import re as _re
+
+        if not _re.fullmatch(r"[A-Za-z0-9_-]{6,64}", upload_id or ""):
+            raise HTTPException(400, "bad upload id")
+        return CHUNKS / f"{upload_id}.part"
+
+    @app.post("/api/upload/chunk")
+    async def upload_chunk(upload_id: str = Form(...), index: int = Form(...), file: UploadFile = File(...)) -> dict[str, Any]:
+        p = _chunk_path(upload_id)
+        data = await file.read()
+        with open(p, "wb" if index == 0 else "ab") as fh:
+            fh.write(data)
+        return {"ok": True, "bytes": p.stat().st_size}
+
+    @app.post("/api/upload/finish")
+    async def upload_finish(req: Request) -> dict[str, Any]:
+        d = await body(req)
+        p = _chunk_path(str(d.get("upload_id", "")))
+        if not p.exists():
+            raise HTTPException(400, "no data received for this upload")
+        purpose = str(d.get("purpose", "video"))
+        name = Path(str(d.get("filename") or "upload.webm")).name.replace(" ", "_")
+        if purpose == "recording":
+            target = RECORDINGS / name
+            p.replace(target)
+            return {"status": "saved", "filename": name, "size_mb": round(target.stat().st_size / 1048576, 2),
+                    "url": f"/recordings/{name}"}
+        target = UPLOADS / name
+        p.replace(target)
+        if purpose == "draft_video":
+            from parikshak.zerog.autogen import start_video_job
+
+            return {"job_id": start_video_job(target, svc.yolo.det_model), "filename": name}
+        res = svc.load_video_file(target)
+        res["filename"] = name
+        return res
+
+    # -------------------------------------------------------- flight logs
+    @app.get("/api/logs")
+    def logs() -> dict[str, Any]:
+        return {"logs": svc.list_logs(), "current": svc.flight.path.name if svc.flight.path else None}
+
+    @app.get("/api/logs/{name}")
+    def log_file(name: str):
+        p = LOGS / Path(name).name
+        if not p.exists() or not (p.name.endswith(".log.jsonl") or p.name.endswith(".log.txt")):
+            raise HTTPException(404, "log not found")
+        return FileResponse(str(p), filename=p.name,
+                            media_type="text/plain; charset=utf-8" if p.suffix == ".txt" else "application/x-ndjson")
+
     @app.post("/api/experiments/custom")
     @app.post("/api/experiment/create_custom")
     async def create_custom(req: Request) -> dict[str, Any]:
@@ -217,7 +299,7 @@ def create_app():
         img = data.get("image") or data.get("frame") or ""
         if not img:
             raise HTTPException(400, "image (base64 JPEG) required")
-        return svc.process_b64_frame(img)
+        return svc.process_b64_frame(img, feed_after=int(data.get("feed_after") or 0))
 
     @app.get("/api/telemetry")
     @app.get("/api/tracker/telemetry")
@@ -295,8 +377,8 @@ def create_app():
     @app.get("/api/video/next")
     @app.get("/api/tracker/video_frame")
     @app.get("/api/tracker/next_video_frame")
-    def video_next() -> dict[str, Any]:
-        return svc.get_next_video_frame()
+    def video_next(feed_after: int = 0) -> dict[str, Any]:
+        return svc.get_next_video_frame(feed_after)
 
     @app.post("/api/video/stop")
     def video_stop() -> dict[str, Any]:

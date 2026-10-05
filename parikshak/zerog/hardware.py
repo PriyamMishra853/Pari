@@ -38,13 +38,20 @@ def gpu_info() -> dict[str, Any]:
         except Exception as exc:  # pragma: no cover
             info["nvidia_smi_error"] = str(exc)
     try:
-        import torch
+        from importlib.metadata import version
 
-        info["torch"] = torch.__version__
-        info["cuda_torch"] = bool(torch.cuda.is_available())
-        info["torch_cuda_build"] = torch.version.cuda
+        info["torch"] = version("torch")
     except Exception:
-        pass
+        info["torch"] = None
+    if info["nvidia_smi"] and info["torch"]:
+        # only worth the (slow) torch import when an NVIDIA GPU is actually present
+        try:
+            import torch
+
+            info["cuda_torch"] = bool(torch.cuda.is_available())
+            info["torch_cuda_build"] = torch.version.cuda
+        except Exception:
+            pass
     info["display_adapters"] = _display_adapters()
     info["cpu"] = platform.processor() or platform.machine()
     info["cpu_threads"] = os.cpu_count()

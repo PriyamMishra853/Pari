@@ -130,6 +130,7 @@ class YoloExperimentTracker:
         #   injected_det:       shared YOLO detection result for this frame
         self.external_pose_mode = False
         self.external_pose = None
+        self.external_metrics: dict[str, Any] | None = None
         self.injected_det = None
         self.render_hud = True
         self.last_pose_source = "none"
@@ -149,6 +150,26 @@ class YoloExperimentTracker:
 
                 self._pose_model = YOLO(str(self._pose_pt))
         return self._pose_model
+
+    def _confirm_drinking(self, box) -> bool:
+        """Hand within 0.7 and bottle within 0.3 shoulder-widths of the mouth
+        (measured: drinking 0.52, bottle merely held up beside the face 0.93).
+        Without precise landmarks the original geometric rule stands alone."""
+        m = self.external_metrics
+        if not m or m.get("mouth") is None:
+            return True
+        mx, my = m["mouth"]
+        sw = max(60.0, float(m.get("shoulder_px") or 150.0))
+        hands = m.get("hands") or []
+        hand_d = min((math.hypot(h[0] - mx, h[1] - my) for h in hands), default=1e9)
+        if hand_d > 0.7 * sw:
+            return False
+        if box is not None:
+            x1, y1, x2, y2 = box
+            gap = math.hypot(max(x1 - mx, 0.0, mx - x2), max(y1 - my, 0.0, my - y2))
+            if gap > 0.3 * sw:
+                return False
+        return True
 
     def _detect(self, frame: np.ndarray):
         if self.injected_det is not None:
@@ -605,6 +626,11 @@ class YoloExperimentTracker:
                         is_drinking_pose = True
                         near_mouth = True
                         break
+
+        # Holding the bottle up beside the face is not drinking: with precise
+        # BlazePose mouth/hand landmarks, require the hand AND the bottle at the mouth.
+        if is_drinking_pose and not self._confirm_drinking(target_box):
+            is_drinking_pose = False
 
         # Grasp detection for Step 4 release checking:
         is_grasping_target = False
@@ -1666,7 +1692,7 @@ class YoloExperimentTracker:
             for w_item in wrists:
                 wx, wy = w_item["point"]
                 dist_to_mouth = min(dist_to_mouth, math.hypot(wx - mouth_region[0], wy - mouth_region[1]))
-        is_drinking = (dist_to_mouth <= 85.0)
+        is_drinking = (dist_to_mouth <= 85.0) and self._confirm_drinking(bottle_box)
 
         # 3. Procedure Step Verification Logic
         active_step = self.steps[self.step_idx] if self.step_idx < len(self.steps) else None
@@ -2373,15 +2399,17 @@ class YoloExperimentTracker:
         edges = cv2.Canny(blurred, 30, 110)
         k_cont = cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7))
         edges_sealed = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, k_cont)
-        cnts_edges, _ = cv2.findContours(edges_sealed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # RETR_LIST, not EXTERNAL: in a real scene the box outline touches the
+        # person's outline and only the merged blob would be "external".
+        cnts_edges, _ = cv2.findContours(edges_sealed, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
 
         candidate_container = None
         best_cont_area = 0.0
         # The crew member's own silhouette is the biggest edge contour in the
-        # frame; a candidate that contains the shoulders/hips is the person, not
-        # the container.
+        # frame; a candidate that contains both shoulders is the person, not the
+        # container (hips are not used: behind a desk they fall inside the box).
         torso_pts = [(k["x"], k["y"]) for k in skeleton_data.get("keypoints", [])
-                     if k.get("visible") and k.get("id") in (5, 6, 11, 12)]
+                     if k.get("visible") and k.get("id") in (5, 6)]
         for c in cnts_edges:
             ox, oy, ow, oh = cv2.boundingRect(c)
             b_area = float(ow * oh)
@@ -2389,6 +2417,9 @@ class YoloExperimentTracker:
             eff_area = max(b_area, c_area)
             if sum(1 for px_, py_ in torso_pts if ox <= px_ <= ox + ow and oy <= py_ <= oy + oh) >= 2:
                 continue
+            if c_area < 0.55 * b_area:  # a box face is rectangular; ragged blobs are clutter
+                continue
+            eff_area = c_area
             if 15000.0 <= eff_area <= 280000.0 and ow >= 150 and oh >= 110:
                 if (float(ow) / max(1.0, float(oh))) < 3.5:
                     if eff_area > best_cont_area:

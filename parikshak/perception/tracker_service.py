@@ -38,6 +38,8 @@ from parikshak.zerog.pipeline import ZeroGPipeline
 from parikshak.zerog.procedure import CUSTOM_DIR, PREDICATES, GenericTracker, describe, load_specs
 
 ROOT = Path(__file__).resolve().parents[2]
+from parikshak.zerog.flightlog import FlightLog, list_logs  # noqa: E402
+from parikshak.zerog.paths import LOGS as LOG_DIR  # noqa: E402
 from parikshak.zerog.paths import UPLOADS as UPLOAD_DIR  # noqa: E402
 
 TUNED = {"WBP-1", "BCX-1", "MOA-1"}
@@ -91,6 +93,7 @@ class CopilotHub:
         self.lock = threading.Lock()
         self.last_ai = 0.0
         self.auto_ai = True
+        self.flight: FlightLog | None = None
 
     def post(self, kind: str, title: str, text: str, spoken: str | None = None, source: str = "local",
              severity: str | None = None, latency_ms: float | None = None, extra: dict | None = None) -> dict[str, Any]:
@@ -101,7 +104,11 @@ class CopilotHub:
                 msg.update(extra)
             self.next_id += 1
             self.feed.append(msg)
-            return msg
+        if self.flight is not None:
+            self.flight.add("copilot", {"step_id": self.flight.step_id, "type": kind, "title": title, "text": text,
+                                        "source": source, "severity": severity, "latency_ms": latency_ms})
+            self.flight.flush()
+        return msg
 
     def since(self, after_id: int = 0) -> list[dict[str, Any]]:
         with self.lock:
@@ -184,6 +191,8 @@ class TrackerService:
         self.specs = load_specs()
         self.generic: GenericTracker | None = None
         self.copilot = CopilotHub()
+        self.flight = FlightLog()
+        self.copilot.flight = self.flight
         self.dataset = DatasetRecorder()
         self._det_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="yolo")
         self.toggles = {"show_mesh": True, "show_skeleton": True, "show_joints": True,
@@ -241,6 +250,7 @@ class TrackerService:
                               spoken=f"{(self.spec or {}).get('title', exp)} loaded. "
                                      + (first.get("voice") or f"Step one. {first.get('prompt', '')}"),
                               source="procedure")
+            self.flight.start(exp, self.spec)
             self.last_telemetry = self._idle_telemetry()
             return self.last_telemetry
 
@@ -256,6 +266,7 @@ class TrackerService:
                 self.video_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 self.video_t0, self.video_pos0 = None, 0
             self.copilot.post("system", "Procedure restarted", "All steps reset to pending.", source="procedure")
+            self.flight.start(self.experiment_id, self.spec)
             self.last_telemetry = self._idle_telemetry()
             return self.last_telemetry
 
@@ -348,14 +359,22 @@ class TrackerService:
         path = CUSTOM_DIR / f"{exp_id}.yaml"
         path.write_text(yaml.safe_dump(spec, sort_keys=False, allow_unicode=True), encoding="utf-8")
         self.specs = load_specs()
-        return {"status": "CREATED", "experiment_id": exp_id, "path": str(path),
+        dataset_dir = None
+        if data.get("from_job"):
+            from parikshak.zerog.autogen import JOBS, save_video_dataset
+            from parikshak.zerog.paths import DATASETS
+
+            job = JOBS.get(str(data["from_job"]))
+            if job and job.get("draft"):
+                dataset_dir = save_video_dataset(exp_id, job["draft"], DATASETS)
+        return {"status": "CREATED", "experiment_id": exp_id, "path": str(path), "dataset_dir": dataset_dir,
                 "steps": [{"id": s["id"], "name": s["name"], "checks": [describe(p) for p in s["require"]]} for s in steps]}
 
     def object_classes(self) -> list[str]:
         return sorted(set(self.yolo.det_model.names.values()) | {"red_box", "yellow_box"})
 
     # --------------------------------------------------------------- frames
-    def process_b64_frame(self, b64_data: str, include_frame: bool = False) -> dict[str, Any]:
+    def process_b64_frame(self, b64_data: str, include_frame: bool = False, feed_after: int = 0) -> dict[str, Any]:
         if "," in b64_data:
             b64_data = b64_data.split(",", 1)[1]
         try:
@@ -364,7 +383,7 @@ class TrackerService:
             return {"error": f"Failed to decode image: {exc}"}
         if frame is None:
             return {"error": "Invalid image data"}
-        tel = self.process_frame(frame, time.time())
+        tel = self.process_frame(frame, time.time(), feed_after)
         return {"telemetry": tel}
 
     process_client_frame = process_b64_frame
@@ -445,7 +464,7 @@ class TrackerService:
                 return res, ms
         return self._run_det(ctx.view)
 
-    def process_frame(self, raw: np.ndarray, t: float) -> dict[str, Any]:
+    def process_frame(self, raw: np.ndarray, t: float, feed_after: int = 0) -> dict[str, Any]:
         with self.lock:
             t_start = time.perf_counter()
             if raw.shape[1] != 640 or raw.shape[0] != 480:
@@ -464,6 +483,12 @@ class TrackerService:
             if self.generic is None:
                 tr = self.yolo
                 tr.external_pose = pl.coco17_for_view(ctx)
+                if ctx.obs is not None:
+                    from parikshak.zerog.autogen import _pose_from_ctx
+
+                    tr.external_metrics = _pose_from_ctx(ctx)
+                else:
+                    tr.external_metrics = None
                 det_ms = 0.0
                 if need_det:
                     tr.injected_det, det_ms = self._detect_view(ctx)
@@ -502,15 +527,40 @@ class TrackerService:
 
             events = self.generic.engine.drain_events() if self.generic is not None else self._tuned_events(tel, t)
             events += self._stall_events(tel, t) if self.generic is None else []
+            self.flight.step_id = tel.get("active_step_id", "")
+            self._log_events(events, tel)
             self.copilot.on_events(events, tel, spec)
+            self.flight.flush()
             tel["events"] = events
-            tel["feed"] = self.copilot.since(0)
+            tel["feed"] = self.copilot.since(feed_after)
             if self.dataset.active:
                 self.dataset.add(view, tel)
             tel["dataset"] = self.dataset.status()
             tel["toggles"] = dict(self.toggles)
             self.last_telemetry = tel
             return tel
+
+    def _log_events(self, events: list[dict[str, Any]], tel: dict[str, Any]) -> None:
+        for e in events:
+            k = e["type"]
+            if k in ("step_completed", "step_skipped", "step_started"):
+                self.flight.add("step", {"step_id": e["step_id"], "status": k.replace("step_", ""),
+                                         "reason": e.get("name", ""), "confidence": None})
+            elif k == "alert":
+                self.flight.add("alert", {"kind": e.get("kind", ""), "step_id": e["step_id"], "severity": e.get("severity", ""),
+                                          "channels": ["voice", "screen"], "text": e.get("message", ""),
+                                          "reason": e.get("kind", ""), "confidence": 1.0})
+            elif k == "stalled":
+                self.flight.add("stall", {"step_id": e["step_id"], "idle_s": e.get("idle_s"), "unmet": e.get("unmet", [])})
+            elif k == "procedure_complete":
+                steps = tel.get("steps", [])
+                self.flight.add("run_end", {
+                    "experiment": tel.get("experiment_id"), "completed": sum(1 for x in steps if x["status"] == "completed"),
+                    "skipped": [x["id"] for x in steps if x["status"] == "skipped"], "total": len(steps),
+                    "alerts": tel.get("alert_count", 0), "compliance_pct": tel.get("compliance_score")})
+
+    def list_logs(self) -> list[dict[str, Any]]:
+        return list_logs(LOG_DIR)
 
     def _tuned_events(self, tel: dict[str, Any], t: float) -> list[dict[str, Any]]:
         ev: list[dict[str, Any]] = []
@@ -929,7 +979,7 @@ class TrackerService:
             return {"status": "loaded", "video_path": p, "total_frames": total, "fps": self.video_fps,
                     "duration_s": round(total / self.video_fps, 1) if self.video_fps else 0}
 
-    def get_next_video_frame(self) -> dict[str, Any]:
+    def get_next_video_frame(self, feed_after: int = 0) -> dict[str, Any]:
         with self.lock:
             if self.video_cap is None or not self.video_cap.isOpened():
                 return {"error": "No video opened"}
@@ -950,7 +1000,7 @@ class TrackerService:
             pos = int(self.video_cap.get(cv2.CAP_PROP_POS_FRAMES))
             vt = self.video_t0 + (pos - self.video_pos0) / self.video_fps
             small = cv2.resize(frame, (640, 480))
-            tel = self.process_frame(small, vt)
+            tel = self.process_frame(small, vt, feed_after)
             _, buf = cv2.imencode(".jpg", small, [cv2.IMWRITE_JPEG_QUALITY, 72])
             return {"frame": "data:image/jpeg;base64," + base64.b64encode(buf).decode("ascii"),
                     "telemetry": tel, "frame_pos": pos, "total_frames": total, "is_eof": False}
