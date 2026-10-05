@@ -1,19 +1,23 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "version": 2,
+  "framework": null,
+  "installCommand": "",
+  "buildCommand": "",
+  "outputDirectory": "frontend",
   "cleanUrls": true,
-  "routes": [
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://YOUR-BACKEND.up.railway.app/api/:path*" },
+    { "source": "/recordings/:path*", "destination": "https://YOUR-BACKEND.up.railway.app/recordings/:path*" },
+    { "source": "/reports/:path*", "destination": "https://YOUR-BACKEND.up.railway.app/reports/:path*" },
+    { "source": "/tags", "destination": "https://YOUR-BACKEND.up.railway.app/tags" },
+    { "source": "/presentation", "destination": "/sih_presentation.html" },
+    { "source": "/app", "destination": "/console.html" },
+    { "source": "/workspace", "destination": "/console.html" }
+  ],
+  "headers": [
     {
-      "src": "/presentation",
-      "dest": "/demo/static/sih_presentation.html"
-    },
-    {
-      "src": "/",
-      "dest": "/demo/static/index.html"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/demo/static/$1"
+      "source": "/(.*)",
+      "headers": [{ "key": "Permissions-Policy", "value": "camera=(self), microphone=(self)" }]
     }
   ]
 }

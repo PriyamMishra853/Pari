@@ -1,0 +1,15 @@
+# Backend (Railway / Docker). Versions match the tested local environment.
+# torch/torchvision are installed separately from the CPU-only index (see Dockerfile).
+fastapi==0.142.2
+uvicorn[standard]==0.54.0
+python-multipart==0.0.32
+httpx==0.28.1
+PyYAML==6.0.3
+jsonschema==4.26.0
+numpy==2.4.6
+onnxruntime==1.30.0
+mediapipe==1.0.1
+ultralytics==8.4.170
+groq==1.7.0
+python-dotenv==1.2.4
+reportlab==5.0.1

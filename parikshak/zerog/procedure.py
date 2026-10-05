@@ -27,7 +27,7 @@ import yaml
 from parikshak.zerog.config import ROOT
 
 EXPERIMENTS_DIR = ROOT / "configs" / "experiments"
-CUSTOM_DIR = EXPERIMENTS_DIR / "custom"
+from parikshak.zerog.paths import CUSTOM_EXPERIMENTS as CUSTOM_DIR  # noqa: E402
 
 OCCLUSION_GRACE_S = 0.7
 

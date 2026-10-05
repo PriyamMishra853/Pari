@@ -1,0 +1,19 @@
+# Vercel only serves frontend/ - skip the heavy backend files on upload
+.venv
+recordings
+reports
+runs
+data
+models
+traces
+submission
+builds
+docs
+tests
+tools
+parikshak
+backend
+demo
+*.onnx
+*.pt
+*.pptx

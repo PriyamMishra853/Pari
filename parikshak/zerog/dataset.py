@@ -29,7 +29,7 @@ import numpy as np
 
 from parikshak.zerog.config import ROOT
 
-DATA_DIR = ROOT / "data" / "datasets"
+from parikshak.zerog.paths import DATASETS as DATA_DIR  # noqa: E402
 
 
 class DatasetRecorder:

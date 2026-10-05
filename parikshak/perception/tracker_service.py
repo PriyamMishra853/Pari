@@ -38,8 +38,7 @@ from parikshak.zerog.pipeline import ZeroGPipeline
 from parikshak.zerog.procedure import CUSTOM_DIR, PREDICATES, GenericTracker, describe, load_specs
 
 ROOT = Path(__file__).resolve().parents[2]
-UPLOAD_DIR = ROOT / "runs" / "uploads"
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+from parikshak.zerog.paths import UPLOADS as UPLOAD_DIR  # noqa: E402
 
 TUNED = {"WBP-1", "BCX-1", "MOA-1"}
 STALL_S = 15.0

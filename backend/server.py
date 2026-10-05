@@ -88,14 +88,14 @@ def create_app():
     from backend.voice import COMMANDS, LABELS, match, whisper_prompt
     from parikshak.perception.tracker_service import get_tracker_service
     from parikshak.zerog.dataset import DatasetRecorder
+    from parikshak.zerog.paths import RECORDINGS, REPORTS, UPLOADS
 
     app = FastAPI(title="PARIKSHAK Mission Server", docs_url="/api/docs", redoc_url=None)
     app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
     svc = get_tracker_service()
 
-    for name in ("static", "recordings", "reports"):
-        p = (FRONTEND_DIR / "static") if name == "static" else (ROOT / name)
+    for name, p in (("static", FRONTEND_DIR / "static"), ("recordings", RECORDINGS), ("reports", REPORTS)):
         p.mkdir(parents=True, exist_ok=True)
         app.mount(f"/{name}", StaticFiles(directory=str(p)), name=name)
 
@@ -278,7 +278,7 @@ def create_app():
     @app.post("/api/video/upload")
     @app.post("/api/tracker/upload_video")
     async def upload_video(file: UploadFile = File(...)) -> dict[str, Any]:
-        up = ROOT / "runs" / "uploads"
+        up = UPLOADS
         up.mkdir(parents=True, exist_ok=True)
         name = Path(file.filename or "upload.mp4").name
         p = up / name
@@ -289,7 +289,7 @@ def create_app():
 
     @app.post("/api/video/recording/{name}")
     def play_recording(name: str) -> dict[str, Any]:
-        p = ROOT / "recordings" / Path(name).name
+        p = RECORDINGS / Path(name).name
         return svc.load_video_file(p)
 
     @app.get("/api/video/next")
@@ -347,8 +347,7 @@ def create_app():
     # -------------------------------------------------------- recordings
     @app.post("/api/tracker/save_recording")
     async def save_recording(req: Request) -> dict[str, Any]:
-        rec = ROOT / "recordings"
-        rec.mkdir(exist_ok=True)
+        rec = RECORDINGS
         ts = time.strftime("%Y%m%d_%H%M%S")
         data, filename = b"", ""
         if "multipart/form-data" in req.headers.get("content-type", ""):
@@ -369,7 +368,7 @@ def create_app():
 
     @app.get("/api/tracker/recordings")
     def recordings() -> dict[str, Any]:
-        rec = ROOT / "recordings"
+        rec = RECORDINGS
         files = []
         for f in rec.glob("*"):
             if f.suffix.lower() in (".webm", ".mp4", ".mkv", ".avi") and f.stat().st_size > 1000:
@@ -383,7 +382,7 @@ def create_app():
     def generate_report() -> dict[str, Any]:
         from parikshak.perception.report_generator import generate_structured_text_report, save_reports_to_disk
 
-        res = save_reports_to_disk(svc)
+        res = save_reports_to_disk(svc, REPORTS)
         res["preview_text"] = generate_structured_text_report(svc)
         return res
 
@@ -400,7 +399,7 @@ def create_app():
 
     @app.get("/api/tracker/reports")
     def reports() -> dict[str, Any]:
-        rd = ROOT / "reports"
+        rd = REPORTS
         files = [{"name": f.name, "size_kb": round(f.stat().st_size / 1024, 1), "is_pdf": f.suffix == ".pdf",
                   "mtime": f.stat().st_mtime, "url": f"/reports/{f.name}"}
                  for f in rd.glob("*") if f.suffix in (".txt", ".pdf")]
